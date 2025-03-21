@@ -5,6 +5,12 @@ local Map = {}
 -- Tile types
 local FLOOR = "."
 local WALL = "#"
+local EXIT = "X"  -- Add exit tile type
+
+-- Make tile types accessible from outside
+Map.FLOOR = FLOOR
+Map.WALL = WALL
+Map.EXIT = EXIT  -- Export the EXIT constant
 
 -- Room parameters
 local MIN_ROOM_SIZE = 4
@@ -80,6 +86,14 @@ function Map.generateDungeon(map)
             -- Store the room
             table.insert(map.rooms, newRoom)
         end
+    end
+    
+    -- Place an exit in the last room
+    if #map.rooms > 0 then
+        local lastRoom = map.rooms[#map.rooms]
+        map.exitX = lastRoom.center.x
+        map.exitY = lastRoom.center.y
+        map.tiles[map.exitY][map.exitX] = EXIT
     end
 end
 

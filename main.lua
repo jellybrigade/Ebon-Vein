@@ -13,6 +13,9 @@ local Visibility = require("visibility")  -- Add visibility module
 -- Game state
 local gameState = {
     running = true,
+    gameOver = false,
+    victory = false,
+    gameOverMessage = "",
     map = nil,
     player = {
         x = 5,
@@ -46,11 +49,21 @@ end
 
 -- Initialize/reset the game
 function initializeGame()
+    -- Reset game state
+    gameState.gameOver = false
+    gameState.victory = false
+    gameState.gameOverMessage = ""
+
     -- Initialize the map
     gameState.map = Map.create(40, 25)
     
     -- Create visibility map
     gameState.visibilityMap = Visibility.createMap(gameState.map.width, gameState.map.height)
+    
+    -- Reset player stats
+    gameState.player.health = gameState.player.maxHealth
+    gameState.player.damage = 2
+    gameState.player.defense = 0
     
     -- Place player in the center of the first room
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
@@ -74,6 +87,7 @@ function initializeGame()
     gameState.messages = {}
     addMessage("You enter the Abyss, seeking the Black Heart...")
     addMessage("Beware the shadows that lurk within...")
+    addMessage("Find the golden exit (X) to escape with the artifact!")
 end
 
 -- Update the visibility map based on player position
@@ -99,14 +113,39 @@ end
 -- Make the addMessage function available to other modules
 gameState.addMessage = addMessage
 
+-- Check for victory conditions
+function checkVictory()
+    -- Check if player is on the exit tile
+    if gameState.map.exitX == gameState.player.x and gameState.map.exitY == gameState.player.y then
+        gameState.victory = true
+        gameState.gameOver = true
+        gameState.gameOverMessage = "You found the Black Heart artifact and escaped the Abyss!"
+        addMessage("Victory! You found the Black Heart artifact!")
+        return true
+    end
+    return false
+end
+
+-- Check for defeat conditions
+function checkDefeat()
+    if gameState.player.health <= 0 then
+        gameState.victory = false
+        gameState.gameOver = true
+        gameState.gameOverMessage = "Your journey ends here, consumed by the darkness of the Abyss..."
+        addMessage("You have been defeated!")
+        return true
+    end
+    return false
+end
+
 -- Attempt to move the player
 function movePlayer(dx, dy)
     local newX = gameState.player.x + dx
     local newY = gameState.player.y + dy
     
-    -- Check if the new position is valid (not a wall)
+    -- Check if the new position is valid
     local tile = Map.getTile(gameState.map, newX, newY)
-    if tile == "." then -- Floor tile
+    if tile == Map.FLOOR or tile == Map.EXIT then -- Floor or exit tile
         -- Check for enemies at the destination
         local enemyIndex = findEnemyAt(newX, newY)
         if enemyIndex then
@@ -137,6 +176,11 @@ function movePlayer(dx, dy)
         
         -- Update visibility after moving
         updateVisibility()
+        
+        -- Check for victory if player moved to the exit
+        if tile == Map.EXIT then
+            checkVictory()
+        end
         
         return true
     end
@@ -207,12 +251,7 @@ function updateEnemies()
             addMessage("The " .. enemy.name .. " attacks you for " .. damageDealt .. " damage!")
             
             -- Check if player is defeated
-            if gameState.player.health <= 0 then
-                addMessage("You have been defeated! Game over...")
-                -- Handle player death (will implement proper game over later)
-                gameState.player.health = gameState.player.maxHealth
-                addMessage("But wait... the Abyss grants you another chance.")
-            end
+            checkDefeat()
         end
     end
     
@@ -228,6 +267,14 @@ end
 
 -- Process player input
 function love.keypressed(key)
+    -- If game is over, only respond to restart key
+    if gameState.gameOver then
+        if key == "space" then
+            initializeGame()
+        end
+        return
+    end
+    
     -- Handle inventory toggling
     if key == "i" then
         toggleInventory()
@@ -276,7 +323,7 @@ function love.keypressed(key)
     end
     
     -- If the player moved, update enemies (their turn)
-    if moved then
+    if moved and not gameState.gameOver then
         updateEnemies()
     end
 end
@@ -325,5 +372,10 @@ function love.draw()
     -- Draw inventory if open
     if gameState.showInventory then
         Renderer.drawInventory(gameState.player.inventory, gameState.selectedItem)
+    end
+    
+    -- Draw game over/victory screen if applicable
+    if gameState.gameOver then
+        Renderer.drawGameOver(gameState.gameOverMessage, gameState.victory)
     end
 end

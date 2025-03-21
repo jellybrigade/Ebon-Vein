@@ -13,6 +13,7 @@ local GRID_OFFSET_Y = 50
 local COLORS = {
     floor = {0.2, 0.2, 0.3},
     wall = {0.5, 0.5, 0.6},
+    exit = {0.9, 0.8, 0.1},  -- Bright gold color for exit
     player = {1, 1, 1},
     message = {0.8, 0.8, 0.6},
     title = {0.7, 0.2, 0.2},
@@ -44,7 +45,14 @@ function Renderer.drawMap(map, visibilityMap)
                 )
             else
                 -- Choose color based on tile type and visibility state
-                local baseColor = (tile == ".") and COLORS.floor or COLORS.wall
+                local baseColor
+                if tile == "." then
+                    baseColor = COLORS.floor
+                elseif tile == "#" then
+                    baseColor = COLORS.wall
+                elseif tile == "X" then
+                    baseColor = COLORS.exit
+                end
                 
                 if visState == Visibility.VISIBLE then
                     -- Fully visible
@@ -164,6 +172,44 @@ function Renderer.drawInventory(inventory, selectedItem)
             love.graphics.print(item.description, 400, y)
         end
     end
+    
+    love.graphics.setColor(1, 1, 1)
+end
+
+-- Draw the game over screen
+function Renderer.drawGameOver(message, isVictory)
+    -- Semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    
+    -- Game over text
+    if isVictory then
+        love.graphics.setColor(0.7, 0.9, 0.3) -- Green for victory
+    else
+        love.graphics.setColor(0.9, 0.3, 0.3) -- Red for defeat
+    end
+    
+    -- Draw centered large text
+    love.graphics.print(
+        isVictory and "VICTORY!" or "GAME OVER", 
+        love.graphics.getWidth() / 2 - 50, 
+        love.graphics.getHeight() / 2 - 30
+    )
+    
+    -- Draw message
+    love.graphics.setColor(0.9, 0.9, 0.7)
+    love.graphics.print(
+        message,
+        love.graphics.getWidth() / 2 - 200,
+        love.graphics.getHeight() / 2 + 10
+    )
+    
+    -- Instructions to restart
+    love.graphics.print(
+        "Press SPACE to play again",
+        love.graphics.getWidth() / 2 - 100,
+        love.graphics.getHeight() / 2 + 50
+    )
     
     love.graphics.setColor(1, 1, 1)
 end
