@@ -27,8 +27,8 @@ function love.load()
     -- Initialize the map
     gameState.map = Map.create(40, 25) -- Create a 40x25 grid map
     
-    -- Place player in a valid floor position
-    gameState.player.x, gameState.player.y = Map.findRandomFloor(gameState.map)
+    -- Place player in the center of the first room
+    gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
     
     -- Add initial message
     addMessage("You enter the Abyss, seeking the Black Heart...")
@@ -89,7 +89,7 @@ function love.keypressed(key)
     -- For testing: regenerate the map with 'r'
     if key == "r" then
         gameState.map = Map.create(40, 25)
-        gameState.player.x, gameState.player.y = Map.findRandomFloor(gameState.map)
+        gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
         addMessage("A new area of the Abyss forms around you...")
     end
     
