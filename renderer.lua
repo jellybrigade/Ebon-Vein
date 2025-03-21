@@ -16,7 +16,8 @@ local COLORS = {
     message = {0.8, 0.8, 0.6},
     title = {0.7, 0.2, 0.2},
     ui = {0.6, 0.6, 0.8},
-    health = {0.8, 0.2, 0.2}
+    health = {0.8, 0.2, 0.2},
+    inventory = {0.9, 0.9, 0.7}
 }
 
 -- Draw the map
@@ -77,8 +78,8 @@ end
 function Renderer.drawUI(gameState)
     love.graphics.setColor(COLORS.ui)
     
-    -- Controls help - updated for classic roguelike keybindings
-    local controlsText = "Move: Arrow keys | R: New map | Q/ESC: Quit"
+    -- Controls help - updated to include inventory controls
+    local controlsText = "Move: Arrow keys | I: Inventory | R: New map | Q/ESC: Quit"
     love.graphics.print(controlsText, 10, 30)
     
     -- Player health and position
@@ -95,6 +96,41 @@ function Renderer.drawUI(gameState)
     love.graphics.print(posText, 500, 10)
     
     -- Reset color
+    love.graphics.setColor(1, 1, 1)
+end
+
+-- Draw the inventory screen
+function Renderer.drawInventory(inventory, selectedItem)
+    -- Draw semi-transparent background
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", 100, 100, 600, 400)
+    
+    love.graphics.setColor(COLORS.inventory)
+    love.graphics.print("INVENTORY", 350, 110)
+    love.graphics.print("Use: Enter | Close: I or Escape", 260, 130)
+    
+    if #inventory == 0 then
+        love.graphics.print("Your inventory is empty.", 300, 200)
+    else
+        for i, item in ipairs(inventory) do
+            local y = 160 + (i * 25)
+            
+            -- Highlight selected item
+            if selectedItem == i then
+                love.graphics.setColor(0.8, 0.8, 0.5)
+                love.graphics.rectangle("fill", 150, y - 5, 500, 25)
+            end
+            
+            -- Draw item with its original color
+            love.graphics.setColor(item.color)
+            love.graphics.print(item.symbol .. " " .. item.name, 200, y)
+            
+            -- Draw description
+            love.graphics.setColor(COLORS.inventory)
+            love.graphics.print(item.description, 400, y)
+        end
+    end
+    
     love.graphics.setColor(1, 1, 1)
 end
 

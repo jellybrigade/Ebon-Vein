@@ -5,8 +5,9 @@
 -- Load required modules
 local Map = require("map")
 local Renderer = require("renderer")
-local Enemy = require("enemy")  -- Add enemy module
-local Combat = require("combat")  -- Add combat module
+local Enemy = require("enemy")
+local Combat = require("combat")
+local Item = require("item")  -- Add item module
 
 -- Game state
 local gameState = {
@@ -18,12 +19,16 @@ local gameState = {
         symbol = "@",
         health = 10,
         maxHealth = 10,
-        damage = 2,     -- Base damage stat
-        defense = 0,    -- Base defense stat
-        name = "Player" -- For combat messages
+        damage = 2,
+        defense = 0,
+        name = "Player",
+        inventory = {} -- Add inventory list
     },
-    enemies = {},  -- Add enemies list
-    messages = {} -- For displaying game messages
+    enemies = {},
+    items = {},  -- Add items list
+    messages = {},
+    showInventory = false,  -- Flag to toggle inventory display
+    selectedItem = 1  -- Currently selected inventory item
 }
 
 -- Initialize the game
@@ -32,8 +37,13 @@ function love.load()
     local font = love.graphics.newFont("fonts/DejaVuSansMono.ttf", 16)
     love.graphics.setFont(font)
     
+    initializeGame()
+end
+
+-- Initialize/reset the game
+function initializeGame()
     -- Initialize the map
-    gameState.map = Map.create(40, 25) -- Create a 40x25 grid map
+    gameState.map = Map.create(40, 25)
     
     -- Place player in the center of the first room
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
@@ -41,7 +51,14 @@ function love.load()
     -- Spawn enemies
     gameState.enemies = Enemy.spawnEnemies(gameState.map, 8)
     
+    -- Spawn items
+    gameState.items = Item.spawnItems(gameState.map, 6)
+    
+    -- Reset inventory on new game
+    gameState.player.inventory = {}
+    
     -- Add initial message
+    gameState.messages = {}
     addMessage("You enter the Abyss, seeking the Black Heart...")
     addMessage("Beware the shadows that lurk within...")
 end
@@ -79,6 +96,14 @@ function movePlayer(dx, dy)
             return true -- Turn was used for combat
         end
         
+        -- Check for items at the destination
+        local itemIndex = Item.findItemAt(gameState.items, newX, newY)
+        if itemIndex then
+            -- Pick up item
+            local item = gameState.items[itemIndex]
+            pickUpItem(itemIndex)
+        end
+        
         -- No collision, move the player
         gameState.player.x = newX
         gameState.player.y = newY
@@ -86,6 +111,47 @@ function movePlayer(dx, dy)
     end
     
     return false
+end
+
+-- Pick up an item and add to inventory
+function pickUpItem(itemIndex)
+    local item = gameState.items[itemIndex]
+    addMessage("You found a " .. item.name .. "!")
+    
+    -- Add to inventory
+    table.insert(gameState.player.inventory, item)
+    
+    -- Remove from map
+    table.remove(gameState.items, itemIndex)
+end
+
+-- Use an item from inventory
+function useItem(itemIndex)
+    local item = gameState.player.inventory[itemIndex]
+    if item then
+        local result = item.use(gameState.player)
+        addMessage(result)
+        
+        -- Remove from inventory after use
+        table.remove(gameState.player.inventory, itemIndex)
+        
+        -- Reset selection if item was last in inventory
+        if gameState.selectedItem > #gameState.player.inventory then
+            gameState.selectedItem = math.max(1, #gameState.player.inventory)
+        end
+        
+        return true
+    end
+    return false
+end
+
+-- Toggle inventory display
+function toggleInventory()
+    gameState.showInventory = not gameState.showInventory
+    -- Reset selection when opening inventory
+    if gameState.showInventory then
+        gameState.selectedItem = math.min(1, #gameState.player.inventory)
+    end
 end
 
 -- Find enemy at specific coordinates
@@ -128,6 +194,28 @@ end
 
 -- Process player input
 function love.keypressed(key)
+    -- Handle inventory toggling
+    if key == "i" then
+        toggleInventory()
+        return
+    end
+    
+    -- Handle inventory navigation and item usage
+    if gameState.showInventory then
+        if key == "escape" then
+            gameState.showInventory = false
+        elseif key == "up" then
+            gameState.selectedItem = math.max(1, gameState.selectedItem - 1)
+        elseif key == "down" then
+            gameState.selectedItem = math.min(#gameState.player.inventory, gameState.selectedItem + 1)
+        elseif key == "return" then
+            if #gameState.player.inventory > 0 then
+                useItem(gameState.selectedItem)
+            end
+        end
+        return
+    end
+    
     if key == "escape" or key == "q" then
         love.event.quit()
         return
@@ -149,9 +237,7 @@ function love.keypressed(key)
     
     -- For testing: regenerate the map with 'r'
     if key == "r" then
-        gameState.map = Map.create(40, 25)
-        gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
-        gameState.enemies = Enemy.spawnEnemies(gameState.map, 8)
+        initializeGame()
         addMessage("A new area of the Abyss forms around you...")
     end
     
@@ -168,6 +254,11 @@ function love.draw()
     
     -- Render the map and entities
     Renderer.drawMap(gameState.map)
+    
+    -- Draw items
+    for _, item in ipairs(gameState.items) do
+        Renderer.drawEntity(item)
+    end
     
     -- Draw enemies before player (so player is on top)
     for _, enemy in ipairs(gameState.enemies) do
@@ -186,4 +277,9 @@ function love.draw()
     
     -- Draw UI elements
     Renderer.drawUI(gameState)
+    
+    -- Draw inventory if open
+    if gameState.showInventory then
+        Renderer.drawInventory(gameState.player.inventory, gameState.selectedItem)
+    end
 end
