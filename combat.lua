@@ -11,6 +11,16 @@ function Combat.isAdjacent(entity1, entity2)
     return (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
 end
 
+-- Check if entity1 can attack entity2 from range
+function Combat.isInRange(entity1, entity2, range)
+    local range = range or entity1.attackRange or 1
+    local dx = math.abs(entity1.x - entity2.x)
+    local dy = math.abs(entity1.y - entity2.y)
+    local distance = math.sqrt(dx*dx + dy*dy)
+    
+    return distance <= range
+end
+
 -- Calculate damage with randomness factor
 function Combat.calculateDamage(attacker, defender)
     -- Base damage from attacker
@@ -28,8 +38,13 @@ function Combat.calculateDamage(attacker, defender)
 end
 
 -- Handle attack between two entities
-function Combat.attack(attacker, defender)
+function Combat.attack(attacker, defender, isRanged)
     local damage = Combat.calculateDamage(attacker, defender)
+    
+    -- Ranged attacks do slightly less damage
+    if isRanged then
+        damage = math.max(1, damage - 1)
+    end
     
     -- Apply damage to defender
     defender.health = defender.health - damage

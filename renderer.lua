@@ -17,7 +17,8 @@ local COLORS = {
     title = {0.7, 0.2, 0.2},
     ui = {0.6, 0.6, 0.8},
     health = {0.8, 0.2, 0.2},
-    inventory = {0.9, 0.9, 0.7}
+    inventory = {0.9, 0.9, 0.7},
+    rangedAttack = {0.9, 0.5, 0.1} -- New color for ranged attack visualization
 }
 
 -- Draw the map
@@ -63,6 +64,18 @@ function Renderer.drawEntity(entity)
         )
         love.graphics.setColor(1, 1, 1)
     end
+end
+
+-- Draw a ranged attack animation (line from attacker to target)
+function Renderer.drawRangedAttack(from, to)
+    love.graphics.setColor(COLORS.rangedAttack)
+    love.graphics.line(
+        GRID_OFFSET_X + (from.x - 0.5) * TILE_WIDTH,
+        GRID_OFFSET_Y + (from.y - 0.5) * TILE_HEIGHT,
+        GRID_OFFSET_X + (to.x - 0.5) * TILE_WIDTH,
+        GRID_OFFSET_Y + (to.y - 0.5) * TILE_HEIGHT
+    )
+    love.graphics.setColor(1, 1, 1)
 end
 
 -- Draw the messages log

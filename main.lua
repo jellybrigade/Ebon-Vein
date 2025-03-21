@@ -28,7 +28,8 @@ local gameState = {
     items = {},  -- Add items list
     messages = {},
     showInventory = false,  -- Flag to toggle inventory display
-    selectedItem = 1  -- Currently selected inventory item
+    selectedItem = 1,  -- Currently selected inventory item
+    rangedAttacks = {} -- Track active ranged attack animations
 }
 
 -- Initialize the game
@@ -49,13 +50,16 @@ function initializeGame()
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
     
     -- Spawn enemies
-    gameState.enemies = Enemy.spawnEnemies(gameState.map, 8)
+    gameState.enemies = Enemy.spawnEnemies(gameState.map, 12) -- Increased enemy count
     
     -- Spawn items
     gameState.items = Item.spawnItems(gameState.map, 6)
     
     -- Reset inventory on new game
     gameState.player.inventory = {}
+    
+    -- Reset ranged attack animations
+    gameState.rangedAttacks = {}
     
     -- Add initial message
     gameState.messages = {}
@@ -71,6 +75,9 @@ function addMessage(text)
         table.remove(gameState.messages, 1)
     end
 end
+
+-- Make the addMessage function available to other modules
+gameState.addMessage = addMessage
 
 -- Attempt to move the player
 function movePlayer(dx, dy)
@@ -184,6 +191,9 @@ function updateEnemies()
             end
         end
     end
+    
+    -- Clean up expired ranged attacks
+    gameState.rangedAttacks = {}
 end
 
 -- Update game logic (turn-based)
@@ -266,6 +276,11 @@ function love.draw()
     end
     
     Renderer.drawEntity(gameState.player)
+    
+    -- Draw ranged attack animations
+    for _, attack in ipairs(gameState.rangedAttacks) do
+        Renderer.drawRangedAttack(attack.from, attack.to)
+    end
     
     -- Display game title
     love.graphics.setColor(0.7, 0.2, 0.2)
