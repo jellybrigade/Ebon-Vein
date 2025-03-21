@@ -5,6 +5,7 @@
 -- Load required modules
 local Map = require("map")
 local Renderer = require("renderer")
+local Enemy = require("enemy")  -- Add enemy module
 
 -- Game state
 local gameState = {
@@ -13,8 +14,11 @@ local gameState = {
     player = {
         x = 5,
         y = 5,
-        symbol = "@"
+        symbol = "@",
+        health = 10,
+        maxHealth = 10
     },
+    enemies = {},  -- Add enemies list
     messages = {} -- For displaying game messages
 }
 
@@ -30,8 +34,12 @@ function love.load()
     -- Place player in the center of the first room
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
     
+    -- Spawn enemies
+    gameState.enemies = Enemy.spawnEnemies(gameState.map, 8)
+    
     -- Add initial message
     addMessage("You enter the Abyss, seeking the Black Heart...")
+    addMessage("Beware the shadows that lurk within...")
 end
 
 -- Add a message to the game log
@@ -51,12 +59,29 @@ function movePlayer(dx, dy)
     -- Check if the new position is valid (not a wall)
     local tile = Map.getTile(gameState.map, newX, newY)
     if tile == "." then -- Floor tile
+        -- Check for enemies at the destination
+        for _, enemy in ipairs(gameState.enemies) do
+            if enemy.x == newX and enemy.y == newY then
+                -- In the future this will handle combat
+                addMessage("You bump into a " .. enemy.name .. "!")
+                return true -- Return true because the player's turn was used
+            end
+        end
+        
+        -- No collision, move the player
         gameState.player.x = newX
         gameState.player.y = newY
         return true
     end
     
     return false
+end
+
+-- Update enemies (process their turns)
+function updateEnemies()
+    for _, enemy in ipairs(gameState.enemies) do
+        Enemy.update(enemy, gameState)
+    end
 end
 
 -- Update game logic (turn-based)
@@ -90,12 +115,13 @@ function love.keypressed(key)
     if key == "r" then
         gameState.map = Map.create(40, 25)
         gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
+        gameState.enemies = Enemy.spawnEnemies(gameState.map, 8)
         addMessage("A new area of the Abyss forms around you...")
     end
     
-    -- If the player moved, add a turn
+    -- If the player moved, update enemies (their turn)
     if moved then
-        -- This is where we would process enemy turns, etc. in the future
+        updateEnemies()
     end
 end
 
@@ -106,6 +132,12 @@ function love.draw()
     
     -- Render the map and entities
     Renderer.drawMap(gameState.map)
+    
+    -- Draw enemies before player (so player is on top)
+    for _, enemy in ipairs(gameState.enemies) do
+        Renderer.drawEntity(enemy)
+    end
+    
     Renderer.drawEntity(gameState.player)
     
     -- Display game title

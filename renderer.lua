@@ -47,7 +47,13 @@ end
 -- Draw an entity (player, enemy, item, etc.)
 function Renderer.drawEntity(entity)
     if entity.symbol then
-        love.graphics.setColor(COLORS.player)
+        -- Use entity's color if available, otherwise use player color
+        if entity.color then
+            love.graphics.setColor(entity.color)
+        else
+            love.graphics.setColor(COLORS.player)
+        end
+        
         love.graphics.print(
             entity.symbol,
             GRID_OFFSET_X + (entity.x - 1) * TILE_WIDTH,
@@ -74,9 +80,11 @@ function Renderer.drawUI(gameState)
     local controlsText = "Move: Arrow keys | R: New map | Q/ESC: Quit"
     love.graphics.print(controlsText, 10, 30)
     
-    -- Player position (for debugging)
-    local posText = string.format("Position: %d, %d", gameState.player.x, gameState.player.y)
-    love.graphics.print(posText, 600, 10)
+    -- Player position and enemy count
+    local posText = string.format("Position: %d, %d | Enemies: %d", 
+                                 gameState.player.x, gameState.player.y, 
+                                 #gameState.enemies)
+    love.graphics.print(posText, 500, 10)
     
     -- Reset color
     love.graphics.setColor(1, 1, 1)
