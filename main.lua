@@ -6,6 +6,7 @@
 local Map = require("map")
 local Renderer = require("renderer")
 local Enemy = require("enemy")  -- Add enemy module
+local Combat = require("combat")  -- Add combat module
 
 -- Game state
 local gameState = {
@@ -16,7 +17,10 @@ local gameState = {
         y = 5,
         symbol = "@",
         health = 10,
-        maxHealth = 10
+        maxHealth = 10,
+        damage = 2,     -- Base damage stat
+        defense = 0,    -- Base defense stat
+        name = "Player" -- For combat messages
     },
     enemies = {},  -- Add enemies list
     messages = {} -- For displaying game messages
@@ -60,12 +64,19 @@ function movePlayer(dx, dy)
     local tile = Map.getTile(gameState.map, newX, newY)
     if tile == "." then -- Floor tile
         -- Check for enemies at the destination
-        for _, enemy in ipairs(gameState.enemies) do
-            if enemy.x == newX and enemy.y == newY then
-                -- In the future this will handle combat
-                addMessage("You bump into a " .. enemy.name .. "!")
-                return true -- Return true because the player's turn was used
+        local enemyIndex = findEnemyAt(newX, newY)
+        if enemyIndex then
+            -- Attack enemy instead of moving
+            local enemy = gameState.enemies[enemyIndex]
+            local damageDealt, killed = Combat.attack(gameState.player, enemy)
+            
+            addMessage("You attack the " .. enemy.name .. " for " .. damageDealt .. " damage!")
+            
+            if killed then
+                addMessage("You defeated the " .. enemy.name .. "!")
+                table.remove(gameState.enemies, enemyIndex)
             end
+            return true -- Turn was used for combat
         end
         
         -- No collision, move the player
@@ -77,10 +88,35 @@ function movePlayer(dx, dy)
     return false
 end
 
+-- Find enemy at specific coordinates
+function findEnemyAt(x, y)
+    for i, enemy in ipairs(gameState.enemies) do
+        if enemy.x == x and enemy.y == y then
+            return i -- Return the index of the enemy
+        end
+    end
+    return nil
+end
+
 -- Update enemies (process their turns)
 function updateEnemies()
-    for _, enemy in ipairs(gameState.enemies) do
+    for i = #gameState.enemies, 1, -1 do
+        local enemy = gameState.enemies[i]
         Enemy.update(enemy, gameState)
+        
+        -- Check if enemy is adjacent to player to attack
+        if Combat.isAdjacent(enemy, gameState.player) then
+            local damageDealt = Combat.attack(enemy, gameState.player)
+            addMessage("The " .. enemy.name .. " attacks you for " .. damageDealt .. " damage!")
+            
+            -- Check if player is defeated
+            if gameState.player.health <= 0 then
+                addMessage("You have been defeated! Game over...")
+                -- Handle player death (will implement proper game over later)
+                gameState.player.health = gameState.player.maxHealth
+                addMessage("But wait... the Abyss grants you another chance.")
+            end
+        end
     end
 end
 

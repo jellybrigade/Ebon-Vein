@@ -15,7 +15,8 @@ local COLORS = {
     player = {1, 1, 1},
     message = {0.8, 0.8, 0.6},
     title = {0.7, 0.2, 0.2},
-    ui = {0.6, 0.6, 0.8}
+    ui = {0.6, 0.6, 0.8},
+    health = {0.8, 0.2, 0.2}
 }
 
 -- Draw the map
@@ -80,7 +81,14 @@ function Renderer.drawUI(gameState)
     local controlsText = "Move: Arrow keys | R: New map | Q/ESC: Quit"
     love.graphics.print(controlsText, 10, 30)
     
-    -- Player position and enemy count
+    -- Player health and position
+    local healthText = string.format("Health: %d/%d", 
+                                    gameState.player.health, 
+                                    gameState.player.maxHealth)
+    love.graphics.setColor(COLORS.health)
+    love.graphics.print(healthText, 500, 30)
+    
+    love.graphics.setColor(COLORS.ui)
     local posText = string.format("Position: %d, %d | Enemies: %d", 
                                  gameState.player.x, gameState.player.y, 
                                  #gameState.enemies)

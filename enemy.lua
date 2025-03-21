@@ -4,9 +4,9 @@ local Enemy = {}
 
 -- Enemy types with their properties
 local ENEMY_TYPES = {
-    {symbol = "g", name = "Goblin", health = 3, damage = 1, color = {0.5, 0.8, 0.3}},
-    {symbol = "o", name = "Orc", health = 5, damage = 2, color = {0.2, 0.6, 0.1}},
-    {symbol = "s", name = "Shade", health = 2, damage = 1, color = {0.5, 0.5, 0.8}}
+    {symbol = "g", name = "Goblin", health = 3, maxHealth = 3, damage = 1, defense = 0, color = {0.5, 0.8, 0.3}},
+    {symbol = "o", name = "Orc", health = 5, maxHealth = 5, damage = 2, defense = 1, color = {0.2, 0.6, 0.1}},
+    {symbol = "s", name = "Shade", health = 2, maxHealth = 2, damage = 3, defense = 0, color = {0.5, 0.5, 0.8}}
 }
 
 -- Create a new enemy
@@ -20,8 +20,9 @@ function Enemy.create(x, y, type)
         symbol = template.symbol,
         name = template.name,
         health = template.health,
-        maxHealth = template.health,
+        maxHealth = template.maxHealth,
         damage = template.damage,
+        defense = template.defense,
         color = template.color,
         sightRange = 5 -- How far the enemy can "see" the player
     }
@@ -141,9 +142,8 @@ function Enemy.tryMove(enemy, dx, dy, gameState)
         return false
     end
     
-    -- Don't move into player
+    -- Don't move into player - attack will be handled in main.lua
     if newX == gameState.player.x and newY == gameState.player.y then
-        -- In the future, this could trigger combat
         return false
     end
     
