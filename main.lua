@@ -7,7 +7,8 @@ local Map = require("map")
 local Renderer = require("renderer")
 local Enemy = require("enemy")
 local Combat = require("combat")
-local Item = require("item")  -- Add item module
+local Item = require("item")
+local Visibility = require("visibility")  -- Add visibility module
 
 -- Game state
 local gameState = {
@@ -22,14 +23,16 @@ local gameState = {
         damage = 2,
         defense = 0,
         name = "Player",
-        inventory = {} -- Add inventory list
+        inventory = {},
+        visibilityRange = 8 -- Field of vision radius
     },
     enemies = {},
-    items = {},  -- Add items list
+    items = {},
     messages = {},
-    showInventory = false,  -- Flag to toggle inventory display
-    selectedItem = 1,  -- Currently selected inventory item
-    rangedAttacks = {} -- Track active ranged attack animations
+    showInventory = false,
+    selectedItem = 1,
+    rangedAttacks = {},
+    visibilityMap = nil  -- Add visibility map
 }
 
 -- Initialize the game
@@ -46,11 +49,17 @@ function initializeGame()
     -- Initialize the map
     gameState.map = Map.create(40, 25)
     
+    -- Create visibility map
+    gameState.visibilityMap = Visibility.createMap(gameState.map.width, gameState.map.height)
+    
     -- Place player in the center of the first room
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
     
+    -- Update initial visibility
+    updateVisibility()
+    
     -- Spawn enemies
-    gameState.enemies = Enemy.spawnEnemies(gameState.map, 12) -- Increased enemy count
+    gameState.enemies = Enemy.spawnEnemies(gameState.map, 12)
     
     -- Spawn items
     gameState.items = Item.spawnItems(gameState.map, 6)
@@ -65,6 +74,17 @@ function initializeGame()
     gameState.messages = {}
     addMessage("You enter the Abyss, seeking the Black Heart...")
     addMessage("Beware the shadows that lurk within...")
+end
+
+-- Update the visibility map based on player position
+function updateVisibility()
+    Visibility.updateFOV(
+        gameState.map, 
+        gameState.visibilityMap, 
+        gameState.player.x, 
+        gameState.player.y,
+        gameState.player.visibilityRange
+    )
 end
 
 -- Add a message to the game log
@@ -114,6 +134,10 @@ function movePlayer(dx, dy)
         -- No collision, move the player
         gameState.player.x = newX
         gameState.player.y = newY
+        
+        -- Update visibility after moving
+        updateVisibility()
+        
         return true
     end
     
@@ -262,19 +286,24 @@ function love.draw()
     -- Clear the screen
     love.graphics.clear(0, 0, 0)
     
-    -- Render the map and entities
-    Renderer.drawMap(gameState.map)
+    -- Render the map and entities with visibility
+    Renderer.drawMap(gameState.map, gameState.visibilityMap)
     
-    -- Draw items
+    -- Draw items (only if visible)
     for _, item in ipairs(gameState.items) do
-        Renderer.drawEntity(item)
+        if Visibility.isVisible(gameState.visibilityMap, item.x, item.y) then
+            Renderer.drawEntity(item)
+        end
     end
     
-    -- Draw enemies before player (so player is on top)
+    -- Draw enemies (only if visible)
     for _, enemy in ipairs(gameState.enemies) do
-        Renderer.drawEntity(enemy)
+        if Visibility.isVisible(gameState.visibilityMap, enemy.x, enemy.y) then
+            Renderer.drawEntity(enemy)
+        end
     end
     
+    -- Always draw the player
     Renderer.drawEntity(gameState.player)
     
     -- Draw ranged attack animations

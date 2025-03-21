@@ -2,6 +2,7 @@
 
 local Enemy = {}
 local Combat = require("combat")  -- Import combat for ranged attacks
+local Visibility = require("visibility")  -- Import visibility module
 
 -- Enemy types with their properties
 local ENEMY_TYPES = {
@@ -167,13 +168,17 @@ end
 
 -- Update an enemy (decide and perform its action)
 function Enemy.update(enemy, gameState)
+    -- Check if enemy is in player's field of view
+    local isVisible = Visibility.isVisible(gameState.visibilityMap, enemy.x, enemy.y)
+    
     -- Calculate distance to player
     local dx = gameState.player.x - enemy.x
     local dy = gameState.player.y - enemy.y
     local distToPlayer = math.sqrt(dx * dx + dy * dy)
     
     -- Check if player is visible
-    local canSeePlayer = distToPlayer <= enemy.sightRange and Enemy.hasLineOfSight(enemy, gameState.player, gameState.map)
+    local canSeePlayer = distToPlayer <= enemy.sightRange and 
+                          Enemy.hasLineOfSight(enemy, gameState.player, gameState.map)
     
     -- Update last seen player position
     if canSeePlayer then
@@ -211,6 +216,13 @@ function Enemy.update(enemy, gameState)
             Enemy.patrolArea(enemy, gameState)
         else
             Enemy.moveRandomly(enemy, gameState)
+        end
+    end
+    
+    -- If enemy moves into player's field of view for the first time, add a message
+    if not isVisible and Visibility.isVisible(gameState.visibilityMap, enemy.x, enemy.y) then
+        if gameState.addMessage then
+            gameState.addMessage("You see a " .. enemy.name .. " lurking in the shadows!")
         end
     end
 end

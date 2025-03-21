@@ -1,6 +1,7 @@
 -- Renderer module for displaying the game
 
 local Renderer = {}
+local Visibility = require("visibility")  -- Import visibility module
 
 -- Configuration
 local TILE_WIDTH = 16
@@ -18,28 +19,48 @@ local COLORS = {
     ui = {0.6, 0.6, 0.8},
     health = {0.8, 0.2, 0.2},
     inventory = {0.9, 0.9, 0.7},
-    rangedAttack = {0.9, 0.5, 0.1} -- New color for ranged attack visualization
+    rangedAttack = {0.9, 0.5, 0.1},
+    
+    -- Add colors for different visibility states
+    unseen = {0, 0, 0},      -- Black for unseen
+    seen = {0.15, 0.15, 0.2}, -- Dark gray for previously seen
+    visible = {1, 1, 1}      -- Full brightness for visible
 }
 
 -- Draw the map
-function Renderer.drawMap(map)
+function Renderer.drawMap(map, visibilityMap)
     for y = 1, map.height do
         for x = 1, map.width do
             local tile = map.tiles[y][x]
+            local visState = visibilityMap[y][x]
             
-            -- Choose color based on tile type
-            if tile == "." then -- Floor
-                love.graphics.setColor(COLORS.floor)
-            else -- Wall or anything else
-                love.graphics.setColor(COLORS.wall)
+            -- Skip drawing completely unseen tiles
+            if visState == Visibility.UNSEEN then
+                love.graphics.setColor(COLORS.unseen)
+                love.graphics.print(
+                    " ",  -- Empty space for unseen tiles
+                    GRID_OFFSET_X + (x - 1) * TILE_WIDTH,
+                    GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                )
+            else
+                -- Choose color based on tile type and visibility state
+                local baseColor = (tile == ".") and COLORS.floor or COLORS.wall
+                
+                if visState == Visibility.VISIBLE then
+                    -- Fully visible
+                    love.graphics.setColor(baseColor)
+                else
+                    -- Seen but not currently visible (dimmed)
+                    love.graphics.setColor(baseColor[1] * 0.5, baseColor[2] * 0.5, baseColor[3] * 0.5)
+                end
+                
+                -- Draw the tile
+                love.graphics.print(
+                    tile,
+                    GRID_OFFSET_X + (x - 1) * TILE_WIDTH,
+                    GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                )
             end
-            
-            -- Draw the tile
-            love.graphics.print(
-                tile,
-                GRID_OFFSET_X + (x - 1) * TILE_WIDTH,
-                GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
-            )
         end
     end
     
