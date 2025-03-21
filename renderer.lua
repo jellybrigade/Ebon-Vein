@@ -12,7 +12,10 @@ local GRID_OFFSET_Y = 50
 local COLORS = {
     floor = {0.2, 0.2, 0.3},
     wall = {0.5, 0.5, 0.6},
-    player = {1, 1, 1}
+    player = {1, 1, 1},
+    message = {0.8, 0.8, 0.6},
+    title = {0.7, 0.2, 0.2},
+    ui = {0.6, 0.6, 0.8}
 }
 
 -- Draw the map
@@ -52,6 +55,31 @@ function Renderer.drawEntity(entity)
         )
         love.graphics.setColor(1, 1, 1)
     end
+end
+
+-- Draw the messages log
+function Renderer.drawMessages(messages, x, y)
+    love.graphics.setColor(COLORS.message)
+    for i, msg in ipairs(messages) do
+        love.graphics.print(msg, x, y - ((#messages - i) * 20))
+    end
+    love.graphics.setColor(1, 1, 1)
+end
+
+-- Draw UI elements like controls help
+function Renderer.drawUI(gameState)
+    love.graphics.setColor(COLORS.ui)
+    
+    -- Controls help - updated for classic roguelike keybindings
+    local controlsText = "Move: Arrow keys | R: New map | Q/ESC: Quit"
+    love.graphics.print(controlsText, 10, 30)
+    
+    -- Player position (for debugging)
+    local posText = string.format("Position: %d, %d", gameState.player.x, gameState.player.y)
+    love.graphics.print(posText, 600, 10)
+    
+    -- Reset color
+    love.graphics.setColor(1, 1, 1)
 end
 
 return Renderer

@@ -14,7 +14,8 @@ local gameState = {
         x = 5,
         y = 5,
         symbol = "@"
-    }
+    },
+    messages = {} -- For displaying game messages
 }
 
 -- Initialize the game
@@ -28,6 +29,34 @@ function love.load()
     
     -- Place player in a valid floor position
     gameState.player.x, gameState.player.y = Map.findRandomFloor(gameState.map)
+    
+    -- Add initial message
+    addMessage("You enter the Abyss, seeking the Black Heart...")
+end
+
+-- Add a message to the game log
+function addMessage(text)
+    table.insert(gameState.messages, text)
+    -- Keep only the most recent messages
+    if #gameState.messages > 5 then
+        table.remove(gameState.messages, 1)
+    end
+end
+
+-- Attempt to move the player
+function movePlayer(dx, dy)
+    local newX = gameState.player.x + dx
+    local newY = gameState.player.y + dy
+    
+    -- Check if the new position is valid (not a wall)
+    local tile = Map.getTile(gameState.map, newX, newY)
+    if tile == "." then -- Floor tile
+        gameState.player.x = newX
+        gameState.player.y = newY
+        return true
+    end
+    
+    return false
 end
 
 -- Update game logic (turn-based)
@@ -38,16 +67,35 @@ end
 
 -- Process player input
 function love.keypressed(key)
-    if key == "escape" then
+    if key == "escape" or key == "q" then
         love.event.quit()
+        return
     end
     
-    -- Movement will be added later
+    -- Movement controls - classic roguelike uses arrow keys
+    local moved = false
+    
+    -- Arrow keys
+    if key == "up" then
+        moved = movePlayer(0, -1)
+    elseif key == "down" then
+        moved = movePlayer(0, 1)
+    elseif key == "left" then
+        moved = movePlayer(-1, 0)
+    elseif key == "right" then
+        moved = movePlayer(1, 0)
+    end
     
     -- For testing: regenerate the map with 'r'
     if key == "r" then
         gameState.map = Map.create(40, 25)
         gameState.player.x, gameState.player.y = Map.findRandomFloor(gameState.map)
+        addMessage("A new area of the Abyss forms around you...")
+    end
+    
+    -- If the player moved, add a turn
+    if moved then
+        -- This is where we would process enemy turns, etc. in the future
     end
 end
 
@@ -64,4 +112,10 @@ function love.draw()
     love.graphics.setColor(0.7, 0.2, 0.2)
     love.graphics.print("EBON VEIN", 10, 10)
     love.graphics.setColor(1, 1, 1)
+    
+    -- Draw messages log
+    Renderer.drawMessages(gameState.messages, 10, 550)
+    
+    -- Draw UI elements
+    Renderer.drawUI(gameState)
 end
