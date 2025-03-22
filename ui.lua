@@ -47,7 +47,8 @@ function UI.init(width, height)
         helpDelay = 0,
         tooltips = {},
         notifications = {},
-        minimapEnabled = true
+        minimapEnabled = true,
+        showLegend = false  -- Add legend toggle
     }
 end
 
@@ -81,6 +82,11 @@ function UI.drawFrame(ui, gameState)
     
     -- Draw notifications
     UI.drawNotifications(ui)
+    
+    -- Draw legend if enabled
+    if ui.showLegend then
+        UI.drawLegend(ui, gameState)
+    end
 end
 
 -- Draw player statistics in the bottom panel
@@ -455,6 +461,102 @@ function UI.drawMinimap(ui, gameState)
     love.graphics.setColor(1, 1, 1)
 end
 
+-- Draw the legend showing game symbols
+function UI.drawLegend(ui, gameState)
+    -- Position the legend in the top-right corner
+    local x = ui.width - 250
+    local y = 60
+    local width = 230
+    local lineHeight = 24
+    
+    -- Draw background
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", x - 10, y - 10, width, 340)
+    love.graphics.setColor(0.6, 0.6, 0.6, 1)
+    love.graphics.rectangle("line", x - 10, y - 10, width, 340)
+    
+    -- Draw title
+    love.graphics.setColor(COLORS.highlight)
+    love.graphics.print("LEGEND", x, y)
+    y = y + lineHeight + 5
+    
+    -- Draw legend entries
+    love.graphics.setColor(1, 1, 1)
+    
+    -- Player
+    love.graphics.print("@", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - You (The Abyss Seeker)", x + 15, y)
+    y = y + lineHeight
+    
+    -- Enemies
+    love.graphics.setColor(0.9, 0.1, 0.1)
+    love.graphics.print("E", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Enemy", x + 15, y)
+    y = y + lineHeight
+    
+    -- Meditation altar
+    love.graphics.setColor(0.5, 0.5, 0.9)
+    love.graphics.print("Ω", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Meditation Altar", x + 15, y)
+    y = y + lineHeight
+    
+    -- Health potion
+    love.graphics.setColor(0.8, 0.2, 0.2)
+    love.graphics.print("!", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Health Potion", x + 15, y)
+    y = y + lineHeight
+    
+    -- Sanity elixir
+    love.graphics.setColor(0.2, 0.8, 0.2)
+    love.graphics.print("!", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Sanity Elixir", x + 15, y)
+    y = y + lineHeight
+    
+    -- Weapon
+    love.graphics.setColor(0.8, 0.8, 0.2)
+    love.graphics.print("/", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Weapon", x + 15, y)
+    y = y + lineHeight
+    
+    -- Armor
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.print("[", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Armor", x + 15, y)
+    y = y + lineHeight
+    
+    -- Stairs/Level Exit
+    love.graphics.setColor(1, 1, 0.5)
+    love.graphics.print(">", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Level Exit", x + 15, y)
+    y = y + lineHeight
+    
+    -- Wall
+    love.graphics.setColor(0.5, 0.5, 0.5)
+    love.graphics.print("#", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Wall", x + 15, y)
+    y = y + lineHeight
+    
+    -- Floor
+    love.graphics.setColor(0.3, 0.3, 0.3)
+    love.graphics.print(".", x, y)
+    love.graphics.setColor(COLORS.text)
+    love.graphics.print(" - Floor", x + 15, y)
+    y = y + lineHeight
+    
+    -- Controls reminder
+    love.graphics.setColor(COLORS.highlight)
+    love.graphics.print("Press 'L' to close legend", x, y + 10)
+end
+
 -- Add a tooltip that will be displayed
 function UI.addTooltip(ui, text, x, y, duration)
     table.insert(ui.tooltips, {
@@ -602,6 +704,10 @@ function UI.handleInput(ui, key)
     elseif key == "m" then
         -- Toggle minimap
         ui.minimapEnabled = not ui.minimapEnabled
+        return true
+    elseif key == "l" then
+        -- Toggle legend
+        ui.showLegend = not ui.showLegend
         return true
     elseif ui.showHelp and (key == "escape" or key == "h") then
         -- Close help screen

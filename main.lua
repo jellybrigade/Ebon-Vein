@@ -155,6 +155,12 @@ function initializeGame()
     -- Reset inventory between games, but not between levels
     if gameState.gamePhase == Story.PHASE.LEVEL_1 then
         gameState.player.inventory = {}
+        
+        -- Show legend and controls tip for new games
+        if gameState.ui then
+            addMessage("Press 'H' for help and 'L' for legend.")
+            UI.addNotification(gameState.ui, "Press L to view legend", "info")
+        end
     end
     
     -- Reset ranged attack animations
