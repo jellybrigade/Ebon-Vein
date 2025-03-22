@@ -17,20 +17,30 @@ class Camera {
         this.x = Math.max(0, Math.min(this.x, currentMap.width * tileSize - this.width));
         this.y = Math.max(0, Math.min(this.y, currentMap.height * tileSize - this.height));
     }
+    
+    centerOn(x, y) {
+        // Center the camera on a position
+        this.x = x - this.width / 2;
+        this.y = y - this.height / 2;
+        
+        // Prevent camera from showing outside the map
+        this.x = Math.max(0, Math.min(this.x, currentMap.width * tileSize - this.width));
+        this.y = Math.max(0, Math.min(this.y, currentMap.height * tileSize - this.height));
+    }
 }
 
 // ...existing code...
-
+    camera.follow(player);
 // Initialize the camera with the canvas dimensions
 const camera = new Camera(canvas.width, canvas.height);
-
+}
 // ...existing code...
-
-function update() {
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // ...existing code...
-    
-    // Update camera position to follow player
-    camera.follow(player);
+    // Draw map with camera offset
+    for (let y = 0; y < currentMap.height; y++) {
+    camera.centerOn(player.x + player.width/2, player.y + player.height/2);
     
     // ...existing code...
 }
@@ -58,22 +68,42 @@ function render() {
         }
     }
     
-    // Draw entities with camera offset
-    currentMap.enemies.forEach(enemy => {
-        ctx.fillStyle = enemy.color;
+    // Draw entities with camera offsetr if active
+    currentMap.enemies.forEach(enemy => {   if (player.isDebugImmortal()) {
+        ctx.fillStyle = enemy.color;        ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
         ctx.fillRect(enemy.x - camera.x, enemy.y - camera.y, enemy.width, enemy.height);
-    });
+    });MORTAL", canvas.width - 180, 20);
     
-    // Draw player with camera offset
-    ctx.fillStyle = player.color;
+    // Draw player with camera offset   
+    ctx.fillStyle = player.color;    // ...existing code...
     ctx.fillRect(player.x - camera.x, player.y - camera.y, player.width, player.height);
     
+
+
+
+
+
+
+
+// ...existing code...}    // ...existing code for drawing tiles with the new x,y coordinates that account for camera...
+
+
+
+
+
+
+
+// ...existing code...}    // ...existing code for drawing tiles with the new x,y coordinates that account for camera...function drawTile(tileIndex, x, y) {// Update any other functions that draw to the screen to use camera offsets}    // ...existing code...
+
+function drawTile(tileIndex, x, y) {// Update any other functions that draw to the screen to use camera offsets// Setup key handlers
+window.addEventListener('keydown', (e) => {
     // ...existing code...
-}
-
-// Update any other functions that draw to the screen to use camera offsets
-function drawTile(tileIndex, x, y) {
-    // ...existing code for drawing tiles with the new x,y coordinates that account for camera...
-}
-
-// ...existing code...
+    
+    // Toggle debug immortal mode with F1 key
+    if (e.key === 'F1') {
+        player.toggleDebugImmortal();
+        e.preventDefault();
+    }
+    
+    // ...existing code...
+});
