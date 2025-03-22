@@ -466,100 +466,214 @@ function UI.drawMinimap(ui, gameState)
     love.graphics.setColor(1, 1, 1)
 end
 
+-- Get color for terrain type
+function UI.getTerrainColor(tile)
+    if tile == "#" then return COLORS.wall
+    elseif tile == "." then return COLORS.floor
+    elseif tile == "X" then return COLORS.exit
+    elseif tile == "~" then return COLORS.flesh
+    elseif tile == "," then return COLORS.blood
+    else return {1, 1, 1} -- Default white
+    end
+end
+
+-- Get description for terrain type
+function UI.getTerrainDescription(tile)
+    if tile == "#" then return "Wall - Solid stone barrier"
+    elseif tile == "." then return "Floor - Walkable surface"
+    elseif tile == "X" then return "Exit - Leads to the next level"
+    elseif tile == "~" then return "Flesh - Living tissue of the dungeon"
+    elseif tile == "," then return "Blood - Remains of previous victims"
+    else return "Unknown terrain"
+    end
+end
+
 -- Draw the legend showing game symbols
 function UI.drawLegend(ui, gameState)
     -- Position the legend in the top-right corner
     local x = ui.width - 250
-    local y = 60
+    local startY = 60
     local width = 230
     local lineHeight = 24
     
-    -- Draw background
+    -- Collect visible entities
+    local visibleTerrains = {}
+    local visibleItems = {}
+    local visibleEnemies = {}
+    
+    -- Scan visible map tiles
+    for mapY = 1, gameState.map.height do
+        for mapX = 1, gameState.map.width do
+            if Visibility.isVisible(gameState.visibilityMap, mapX, mapY) then
+                local tile = gameState.map.tiles[mapY][mapX]
+                -- Add each tile type only once
+                visibleTerrains[tile] = true
+            end
+        end
+    end
+    
+    -- Collect visible items
+    for _, item in ipairs(gameState.items) do
+        if Visibility.isVisible(gameState.visibilityMap, item.x, item.y) then
+            -- Store by name to avoid duplicates
+            visibleItems[item.name] = item
+        end
+    end
+    
+    -- Collect visible enemies
+    for _, enemy in ipairs(gameState.enemies) do
+        if Visibility.isVisible(gameState.visibilityMap, enemy.x, enemy.y) then
+            -- Store by name to avoid duplicates
+            visibleEnemies[enemy.name] = enemy
+        end
+    end
+    
+    -- Convert dictionaries to arrays for easier iteration
+    local terrainsList = {}
+    for tile, _ in pairs(visibleTerrains) do
+        table.insert(terrainsList, tile)
+    end
+    
+    local itemsList = {}
+    for _, item in pairs(visibleItems) do
+        table.insert(itemsList, item)
+    end
+    
+    local enemiesList = {}
+    for _, enemy in pairs(visibleEnemies) do
+        table.insert(enemiesList, enemy)
+    end
+    
+    -- Draw background with fixed height that's sufficient for most cases
+    local contentHeight = 400 -- Fixed height for simplicity
+    
     love.graphics.setColor(0, 0, 0, 0.8)
-    love.graphics.rectangle("fill", x - 10, y - 10, width, 340)
+    love.graphics.rectangle("fill", x - 10, startY - 10, width, contentHeight)
     love.graphics.setColor(0.6, 0.6, 0.6, 1)
-    love.graphics.rectangle("line", x - 10, y - 10, width, 340)
+    love.graphics.rectangle("line", x - 10, startY - 10, width, contentHeight)
     
     -- Draw title
     love.graphics.setColor(COLORS.highlight)
-    love.graphics.print("LEGEND", x, y)
-    y = y + lineHeight + 5
+    love.graphics.print("LEGEND", x + (width/2 - 30), startY)
+    local currentY = startY + 30
     
-    -- Draw legend entries
+    -- Helper function to truncate text to fit width
+    local function truncateText(text, maxWidth)
+        local font = love.graphics.getFont()
+        if font:getWidth(text) <= maxWidth then
+            return text
+        end
+        
+        local ellipsis = "..."
+        local width = font:getWidth(ellipsis)
+        local i = #text
+        
+        while i > 1 do
+            local truncated = text:sub(1, i) .. ellipsis
+            width = font:getWidth(truncated)
+            
+            if width <= maxWidth then
+                return truncated
+            end
+            
+            i = i - 1
+        end
+        
+        return text:sub(1, 1) .. ellipsis
+    end
+    
+    -- Draw terrain section
+    if #terrainsList > 0 then
+        love.graphics.setColor(COLORS.highlight)
+        love.graphics.print("Terrain", x + 10, currentY)
+        currentY = currentY + 25
+        
+        for _, tile in ipairs(terrainsList) do
+            -- Get color for this tile
+            love.graphics.setColor(UI.getTerrainColor(tile))
+            love.graphics.print(tile, x + 20, currentY)
+            
+            -- Draw description
+            love.graphics.setColor(COLORS.text)
+            local description = UI.getTerrainDescription(tile)
+            love.graphics.print(truncateText(description, width - 50), x + 40, currentY)
+            currentY = currentY + lineHeight
+        end
+        
+        currentY = currentY + 5 -- Spacing between sections
+    end
+    
+    -- Draw items section
+    if #itemsList > 0 then
+        love.graphics.setColor(COLORS.highlight)
+        love.graphics.print("Items", x + 10, currentY)
+        currentY = currentY + 25
+        
+        for _, item in ipairs(itemsList) do
+            -- Draw item symbol with its color
+            love.graphics.setColor(item.color or {1, 1, 1})
+            love.graphics.print(item.symbol, x + 20, currentY)
+            
+            -- Draw item name and description
+            love.graphics.setColor(COLORS.text)
+            local description = item.name
+            if item.description then
+                description = item.name .. " - " .. item.description
+            end
+            
+            love.graphics.print(truncateText(description, width - 50), x + 40, currentY)
+            currentY = currentY + lineHeight
+        end
+        
+        currentY = currentY + 5 -- Spacing between sections
+    end
+    
+    -- Draw enemies section
+    if #enemiesList > 0 then
+        love.graphics.setColor(COLORS.highlight)
+        love.graphics.print("Enemies", x + 10, currentY)
+        currentY = currentY + 25
+        
+        for _, enemy in ipairs(enemiesList) do
+            -- Draw enemy symbol with its color
+            love.graphics.setColor(enemy.color or {1, 0, 0})
+            love.graphics.print(enemy.symbol, x + 20, currentY)
+            
+            -- Draw enemy name and description
+            love.graphics.setColor(COLORS.text)
+            local description = enemy.name
+            if enemy.description then
+                description = enemy.name .. " - " .. enemy.description
+            else
+                -- Default descriptions based on behavior
+                if enemy.behavior == "aggressive" then
+                    description = enemy.name .. " - Aggressively hunts you"
+                elseif enemy.behavior == "ranged" then
+                    description = enemy.name .. " - Attacks from a distance"
+                elseif enemy.behavior == "flanking" then
+                    description = enemy.name .. " - Tries to flank you"
+                elseif enemy.behavior == "patrolling" then
+                    description = enemy.name .. " - Patrols an area"
+                elseif enemy.behavior == "defensive" then
+                    description = enemy.name .. " - Defensive fighter"
+                else
+                    description = enemy.name
+                end
+            end
+            
+            love.graphics.print(truncateText(description, width - 50), x + 40, currentY)
+            currentY = currentY + lineHeight
+        end
+    end
+    
+    -- If nothing is visible, show a message
+    if #terrainsList == 0 and #itemsList == 0 and #enemiesList == 0 then
+        love.graphics.setColor(COLORS.text)
+        love.graphics.print("Nothing visible yet...", x + 20, currentY)
+    end
+    
+    -- Reset color
     love.graphics.setColor(1, 1, 1)
-    
-    -- Player
-    love.graphics.print("@", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - You (The Abyss Seeker)", x + 15, y)
-    y = y + lineHeight
-    
-    -- Enemies
-    love.graphics.setColor(0.9, 0.1, 0.1)
-    love.graphics.print("E", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Enemy", x + 15, y)
-    y = y + lineHeight
-    
-    -- Meditation altar
-    love.graphics.setColor(0.5, 0.5, 0.9)
-    love.graphics.print("Ω", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Meditation Altar", x + 15, y)
-    y = y + lineHeight
-    
-    -- Health potion
-    love.graphics.setColor(0.8, 0.2, 0.2)
-    love.graphics.print("!", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Health Potion", x + 15, y)
-    y = y + lineHeight
-    
-    -- Sanity elixir
-    love.graphics.setColor(0.2, 0.8, 0.2)
-    love.graphics.print("!", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Sanity Elixir", x + 15, y)
-    y = y + lineHeight
-    
-    -- Weapon
-    love.graphics.setColor(0.8, 0.8, 0.2)
-    love.graphics.print("/", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Weapon", x + 15, y)
-    y = y + lineHeight
-    
-    -- Armor
-    love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.print("[", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Armor", x + 15, y)
-    y = y + lineHeight
-    
-    -- Stairs/Level Exit
-    love.graphics.setColor(1, 1, 0.5)
-    love.graphics.print(">", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Level Exit", x + 15, y)
-    y = y + lineHeight
-    
-    -- Wall
-    love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.print("#", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Wall", x + 15, y)
-    y = y + lineHeight
-    
-    -- Floor
-    love.graphics.setColor(0.3, 0.3, 0.3)
-    love.graphics.print(".", x, y)
-    love.graphics.setColor(COLORS.text)
-    love.graphics.print(" - Floor", x + 15, y)
-    y = y + lineHeight
-    
-    -- Controls reminder
-    love.graphics.setColor(COLORS.highlight)
-    love.graphics.print("Press 'L' to close legend", x, y + 10)
 end
 
 -- Add a tooltip that will be displayed

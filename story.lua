@@ -313,6 +313,18 @@ function Story.showNarrativeScreen(phase, callback)
                 )
             end)
         end
+        
+        -- Draw the legend at the bottom of the screen
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.8) -- Soft gray color
+        local legendText = "Phase: " .. narrativeScreen.phase .. 
+                           " | Line: " .. narrativeScreen.currentLine .. 
+                           " of " .. #narrativeScreen.lines
+        local fontSize = love.graphics.getFont():getHeight() * 0.8 -- Slightly smaller text
+        local legendY = love.graphics.getHeight() - fontSize - 10 -- Position at bottom with padding
+        love.graphics.print(legendText, 20, legendY)
+        
+        -- Reset color for other elements
+        love.graphics.setColor(1, 1, 1, 1)
     end
     
     return narrativeScreen
