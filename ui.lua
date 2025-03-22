@@ -503,11 +503,11 @@ end
 
 -- Get color for terrain type
 function UI.getTerrainColor(tile)
-    if tile == "#" then return COLORS.wall
-    elseif tile == "." then return COLORS.floor
-    elseif tile == "X" then return COLORS.exit
-    elseif tile == "~" then return COLORS.flesh
-    elseif tile == "," then return COLORS.blood
+    if tile == "#" then return {0.3, 0.3, 0.4}  -- Wall color
+    elseif tile == "." then return {0.5, 0.5, 0.6}  -- Floor color
+    elseif tile == "X" then return {0.5, 0.4, 0.2}  -- Exit color (matches highlight)
+    elseif tile == "~" then return {0.5, 0.2, 0.3}  -- Flesh color
+    elseif tile == "," then return {0.6, 0.2, 0.2}  -- Blood color
     else return {1, 1, 1} -- Default white
     end
 end
