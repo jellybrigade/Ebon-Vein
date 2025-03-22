@@ -901,4 +901,26 @@ function UI.drawWrappedText(ui, text, x, y, width)
     end
 end
 
+-- Update help text to include new actions
+function UI.showHelp(ui)
+    ui.showHelp = true
+    ui.helpContent = {
+        "EBON VEIN - CONTROLS",
+        "",
+        "Arrow keys: Move/attack",
+        "1-5: Use abilities",
+        "I: Open inventory",
+        "E: Interact with environment/objects",
+        "L: Show legend",
+        "H: Show this help",
+        "Esc: This menu / Exit",
+        "SPACE: Continue (when game over)",
+        "",
+        "Sanity affects your perception.",
+        "Low sanity causes hallucinations.",
+        "Meditation at altars can help regain sanity."
+    }
+    ui.helpDelay = 0 -- Don't auto-hide
+end
+
 return UI

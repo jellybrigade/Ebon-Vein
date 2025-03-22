@@ -306,6 +306,20 @@ function Renderer.drawUI(gameState)
                                  #gameState.enemies)
     love.graphics.print(posText, 500, 10)
     
+    -- Draw status effects
+    local statusY = 120
+    if gameState.player.statusEffects and #gameState.player.statusEffects > 0 then
+        love.graphics.setColor(0.7, 0.7, 0.9)
+        love.graphics.print("Status Effects:", 10, statusY)
+        statusY = statusY + 20
+        
+        for _, effect in ipairs(gameState.player.statusEffects) do
+            love.graphics.setColor(0.6, 0.8, 0.6)
+            love.graphics.print("- " .. effect.name .. " (" .. effect.remaining .. " turns)", 15, statusY)
+            statusY = statusY + 15
+        end
+    end
+    
     -- Reset color
     love.graphics.setColor(1, 1, 1)
 end
@@ -480,6 +494,48 @@ function Renderer.drawGameOver(message, isVictory)
     )
     
     love.graphics.setColor(1, 1, 1)
+end
+
+-- Add function to draw abilities
+function Renderer.drawAbilities(abilities)
+    local startX = 10
+    local startY = love.graphics.getHeight() - 70
+    local width = 160
+    local height = 60
+    
+    -- Draw background
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.8)
+    love.graphics.rectangle("fill", startX, startY, width, height)
+    
+    love.graphics.setColor(0.6, 0.6, 0.8)
+    love.graphics.rectangle("line", startX, startY, width, height)
+    
+    -- Draw title
+    love.graphics.setColor(0.8, 0.8, 0.9)
+    love.graphics.print("Abilities:", startX + 5, startY + 5)
+    
+    -- Draw abilities
+    local y = startY + 25
+    for i, ability in ipairs(abilities) do
+        -- Show cooldown or ready
+        local status = "Ready"
+        local statusColor = {0.2, 0.9, 0.2}
+        
+        if ability.currentCooldown > 0 then
+            status = "CD: " .. ability.currentCooldown
+            statusColor = {0.9, 0.3, 0.2}
+        end
+        
+        -- Draw ability name and hotkey
+        love.graphics.setColor(0.8, 0.8, 0.6)
+        love.graphics.print(i .. ": " .. ability.name, startX + 5, y)
+        
+        -- Draw cooldown status
+        love.graphics.setColor(statusColor)
+        love.graphics.print(status, startX + 100, y)
+        
+        y = y + 15
+    end
 end
 
 return Renderer

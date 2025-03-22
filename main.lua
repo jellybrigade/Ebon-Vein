@@ -13,6 +13,7 @@ local UI = require("ui")  -- Add UI module
 local Story = require("story") -- Add story module
 local Sanity = require("sanity") -- Add sanity module
 local Hazard = require("hazard") -- Add hazard module
+local Player = require("player") -- Add the player module
 
 -- Game state
 local gameState = {
@@ -35,7 +36,8 @@ local gameState = {
         statusEffects = {},   -- For tracking buffs/debuffs
         sanity = nil, -- Will be initialized later
         visibilityReduction = 0, -- Reduction due to insanity
-        attackRandomly = false -- Random attack behavior due to insanity
+        attackRandomly = false, -- Random attack behavior due to insanity
+        abilities = {} -- Player abilities
     },
     enemies = {},
     items = {},
@@ -188,6 +190,9 @@ function initializeGame()
     
     -- Add sanity-related level effects
     initializeSanityEffects()
+    
+    -- Reset player abilities with cooldowns
+    Player.initAbilities(gameState.player)
 end
 
 -- Initialize sanity effects for the current level
@@ -333,6 +338,10 @@ end
 
 -- Attempt to move the player
 function movePlayer(dx, dy)
+    -- Store direction for hazard manipulation
+    gameState.player.lastMoveX = dx
+    gameState.player.lastMoveY = dy
+    
     local newX = gameState.player.x + dx
     local newY = gameState.player.y + dy
     
@@ -348,9 +357,11 @@ function movePlayer(dx, dy)
     
     -- Check if the new position is valid
     if tile == Map.FLOOR or tile == Map.EXIT or tile == Map.FLESH or tile == Map.BLOOD then
-        -- Check for enemies at the destination
+        -- Check for real enemies (not hallucinations) at the destination
         local enemyIndex = findEnemyAt(newX, newY)
-        if enemyIndex then
+        local isHallu, _ = isHallucination(newX, newY)
+        
+        if enemyIndex and not isHallu then
             -- Attack enemy instead of moving
             local enemy = gameState.enemies[enemyIndex]
             
@@ -703,6 +714,12 @@ function updateEnemies()
     
     -- Update hazards
     Hazard.updateHazards(gameState.hazards, gameState)
+    
+    -- Update player status effects at end of turn
+    Combat.updateStatusEffects(gameState.player)
+    
+    -- Update ability cooldowns
+    Player.updateAbilities(gameState.player)
 end
 
 -- Update game logic (turn-based)
@@ -747,34 +764,36 @@ function love.update(dt)
     if gameState.levelEffects.whispers and math.random() < 0.002 then
         -- Random whispers in deeper levels
         local whispers = {
+            "...join us...",
             "...come closer...",
             "...you belong here...",
             "...no escape...",
-            "...join us...",
-            "...the heart beats for you..."
+            "...you will never leave...",
+            "...we are waiting for you..."
         }
         addMessage(whispers[math.random(#whispers)])
     end
     
-    if gameState.levelEffects.heartbeat and math.random() < 0.005 then
-        -- Heartbeat effect in final levels
-        -- This could be expanded with sound effects
-        if gameState.ui then
-            UI.addNotification(gameState.ui, "*thump* The Black Heart pulses...", "warning")
-        end
-    end
-    
     -- Update sanity hallucinations
     if gameState.player.sanity then
+        -- Update hallucinations
         local whisperMessage = Sanity.updateHallucinations(
-            gameState.player.sanity, 
-            gameState, 
-            dt, 
+            gameState.player.sanity,
+            gameState,
+            dt,
             gameState.lastTurnCompleted
         )
         
         if whisperMessage then
             addMessage(whisperMessage)
+        end
+        
+        -- Check for heartbeat effect
+        if gameState.levelEffects and gameState.levelEffects.heartbeat and math.random() < 0.005 then
+            -- This could be expanded with sound effects
+            if gameState.ui then
+                UI.addNotification(gameState.ui, "*thump* The Black Heart pulses...", "warning")
+            end
         end
         
         -- Apply sanity effects
@@ -842,7 +861,6 @@ function love.keypressed(key)
     
     -- Movement controls - classic roguelike uses arrow keys
     local moved = false
-    
     -- Arrow keys
     if key == "up" then
         moved = movePlayer(0, -1)
@@ -866,6 +884,20 @@ function love.keypressed(key)
         print("Debug mode: " .. tostring(DEBUG_MODE))
     end
     
+    -- Add ability hotkeys (1-5)
+    if key >= "1" and key <= "5" then
+        local abilityIndex = tonumber(key)
+        if gameState.player.abilities and gameState.player.abilities[abilityIndex] then
+            local success, message = Player.useAbility(gameState.player, abilityIndex, gameState)
+            addMessage(message)
+            if success then
+                gameState.lastTurnCompleted = true
+                updateEnemies()
+            end
+        end
+        return
+    end
+    
     -- If the player moved, update enemies (their turn)
     if moved and not gameState.gameOver then
         updateEnemies()
@@ -882,7 +914,7 @@ function processPlayerAction(action)
         gameState.showHelp = not gameState.showHelp
         return
     end
-
+    
     -- If showing inventory, handle inventory actions
     if gameState.showInventory then
         if action == "up" and gameState.inventorySelection > 1 then
@@ -899,7 +931,6 @@ function processPlayerAction(action)
     
     -- Regular movement and actions
     local dx, dy = 0, 0
-    
     if action == "up" then dy = -1
     elseif action == "down" then dy = 1
     elseif action == "left" then dx = -1
@@ -1003,7 +1034,7 @@ function love.draw()
     -- Draw hallucinations (only visible ones)
     if gameState.player.sanity then
         for _, hallucination in ipairs(gameState.player.sanity.hallucinations) do
-            if hallucination.x and hallucination.y and
+            if hallucination.x and hallucination.y and 
                Visibility.isVisible(gameState.visibilityMap, hallucination.x, hallucination.y) then
                 
                 if hallucination.type == Sanity.HALLUCINATIONS.FALSE_ENEMY then

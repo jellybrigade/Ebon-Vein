@@ -86,6 +86,11 @@ end
 
 -- Trigger a hazard effect when stepped on
 function Hazard.trigger(hazard, entity, gameState)
+    -- Don't trigger disabled hazards
+    if hazard.type == Hazard.TYPES.SPIKE_TRAP and hazard.properties.disabled then
+        return false
+    end
+    
     if not hazard.active then
         return false
     end
@@ -242,6 +247,14 @@ function Hazard.updateHazards(hazards, gameState)
                 end
             end
         end
+        
+        -- Handle disabled spikes
+        if hazard.type == Hazard.TYPES.SPIKE_TRAP and hazard.properties.disabled then
+            hazard.properties.disabledTurns = hazard.properties.disabledTurns - 1
+            if hazard.properties.disabledTurns <= 0 then
+                hazard.properties.disabled = false
+            end
+        end
     end
     
     -- Add any new hazards that were created
@@ -322,6 +335,65 @@ function Hazard.generateHazards(map, level)
     end
     
     return hazards
+end
+
+-- Add hazard manipulation functions
+function Hazard.manipulate(hazard, entity, gameState)
+    if not hazard or not hazard.active then
+        return false, "No hazard to manipulate"
+    end
+    
+    -- Different hazard types can be manipulated differently
+    if hazard.type == Hazard.TYPES.GAS_VENT then
+        -- Block the vent temporarily
+        hazard.properties.ventCounter = hazard.properties.ventInterval
+        return true, "You temporarily block the gas vent."
+        
+    elseif hazard.type == Hazard.TYPES.FIRE then
+        -- Try to spread fire in direction player is facing
+        -- First, determine which direction player is facing based on last move
+        local dx = 0
+        local dy = 0
+        
+        if gameState.player.lastMoveX and gameState.player.lastMoveY then
+            dx = gameState.player.lastMoveX
+            dy = gameState.player.lastMoveY
+        end
+        
+        local targetX = hazard.x + dx
+        local targetY = hazard.y + dy
+        
+        -- Only spread to valid tiles
+        if Map.isPassable(gameState.map, targetX, targetY) then
+            -- Create new fire hazard
+            local newFire = Hazard.create(
+                Hazard.TYPES.FIRE,
+                targetX,
+                targetY,
+                {
+                    damage = hazard.properties.damage,
+                    spreadChance = hazard.properties.spreadChance,
+                    duration = 5
+                }
+            )
+            table.insert(gameState.hazards, newFire)
+            return true, "You spread the fire!"
+        end
+        return false, "Can't spread fire in that direction."
+        
+    elseif hazard.type == Hazard.TYPES.SPIKE_TRAP then
+        -- Disable the spikes temporarily
+        hazard.properties.disabled = true
+        hazard.properties.disabledTurns = 5
+        return true, "You jam the spike mechanism temporarily."
+        
+    elseif hazard.type == Hazard.TYPES.CRUMBLING then
+        -- Trigger the collapse immediately
+        hazard.properties.stepsBeforeCollapse = 0
+        return true, "You stomp hard, causing the floor to collapse!"
+    end
+    
+    return false, "You can't manipulate this hazard."
 end
 
 return Hazard
