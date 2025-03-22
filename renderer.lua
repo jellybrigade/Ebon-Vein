@@ -496,10 +496,12 @@ function Renderer.drawGameOver(message, isVictory)
     love.graphics.setColor(1, 1, 1)
 end
 
--- Add function to draw abilities
+-- Update the drawAbilities function to not overlap with UI
+
+-- Draw abilities separately - this is a legacy function that may be used if UI module isn't used
 function Renderer.drawAbilities(abilities)
     local startX = 10
-    local startY = love.graphics.getHeight() - 70
+    local startY = love.graphics.getHeight() - 180  -- Move higher to avoid UI overlap
     local width = 160
     local height = 60
     

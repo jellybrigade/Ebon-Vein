@@ -33,10 +33,10 @@ local COLORS = {
 }
 
 -- Panel dimensions
-local PANEL_HEIGHT = 130  -- Increased from 120 for more space
-local SIDE_PANEL_WIDTH = 250  -- Keeping the same
+local PANEL_HEIGHT = 100  -- Reduced height for message-only bottom panel
+local SIDE_PANEL_WIDTH = 280  -- Increased to accommodate all player info
 local TOOLTIP_WIDTH = 250
-local TOOLTIP_PADDING = 10  -- Increased from 8
+local TOOLTIP_PADDING = 10
 
 -- Initialize UI elements
 function UI.init(width, height)
@@ -54,23 +54,22 @@ end
 
 -- Draw the main UI frame
 function UI.drawFrame(ui, gameState)
-    -- Bottom panel background
+    -- Bottom panel background (messages only)
     love.graphics.setColor(COLORS.panel)
-    love.graphics.rectangle("fill", 0, ui.height - PANEL_HEIGHT, ui.width, PANEL_HEIGHT)
+    love.graphics.rectangle("fill", 0, ui.height - PANEL_HEIGHT, ui.width - SIDE_PANEL_WIDTH, PANEL_HEIGHT)
     
-    -- Side panel background
-    love.graphics.rectangle("fill", ui.width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH, ui.height - PANEL_HEIGHT)
+    -- Side panel background (all game info)
+    love.graphics.rectangle("fill", ui.width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH, ui.height)
     
     -- Panel borders
     love.graphics.setColor(COLORS.border)
-    love.graphics.rectangle("line", 0, ui.height - PANEL_HEIGHT, ui.width, PANEL_HEIGHT)
-    love.graphics.rectangle("line", ui.width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH, ui.height - PANEL_HEIGHT)
+    love.graphics.rectangle("line", 0, ui.height - PANEL_HEIGHT, ui.width - SIDE_PANEL_WIDTH, PANEL_HEIGHT)
+    love.graphics.rectangle("line", ui.width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH, ui.height)
     
     -- Draw the content within the panels
-    UI.drawPlayerStats(ui, gameState)
-    UI.drawSidePanel(ui, gameState)
+    UI.drawSidePanel(ui, gameState)  -- Includes player stats now
     UI.drawMessages(ui, gameState)
-    UI.drawControls(ui, gameState)
+    -- UI.drawControls(ui, gameState) -- Function not implemented yet
     
     -- Draw minimap if enabled
     if ui.minimapEnabled then
@@ -89,22 +88,55 @@ function UI.drawFrame(ui, gameState)
     end
 end
 
--- Draw player statistics in the bottom panel
+-- Draw a progress bar (for health, sanity, etc.)
+function UI.drawProgressBar(x, y, width, height, fillRatio, fillColor, bgColor, labelText)
+    -- Clamp fill ratio to valid range
+    fillRatio = math.max(0, math.min(1, fillRatio))
+    
+    -- Draw background
+    love.graphics.setColor(bgColor)
+    love.graphics.rectangle("fill", x, y, width, height)
+    
+    -- Draw fill
+    love.graphics.setColor(fillColor)
+    love.graphics.rectangle("fill", x, y, width * fillRatio, height)
+    
+    -- Draw border
+    love.graphics.setColor(COLORS.border)
+    love.graphics.rectangle("line", x, y, width, height)
+    
+    -- Draw label text centered on the bar
+    if labelText then
+        love.graphics.setColor(COLORS.text)
+        local font = love.graphics.getFont()
+        local textWidth = font:getWidth(labelText)
+        local textHeight = font:getHeight()
+        love.graphics.print(
+            labelText, 
+            x + (width / 2) - (textWidth / 2),
+            y + (height / 2) - (textHeight / 2)
+        )
+    end
+end
+
+-- Draw player statistics in the side panel
 function UI.drawPlayerStats(ui, gameState)
     local player = gameState.player
-    local statY = ui.height - PANEL_HEIGHT + 20  -- Increased space from top of panel
+    local x = ui.width - SIDE_PANEL_WIDTH + 15
+    local y = 50  -- Starting position in side panel
     
     -- Player name and title
     love.graphics.setColor(COLORS.highlight)
-    love.graphics.print("ABYSS SEEKER", 20, statY)
+    love.graphics.print("ABYSS SEEKER", x, y)
     
     -- Level/floor indication
-    local floorText = "Depth: " .. (gameState.gamePhase or gameState.currentLevel or 1)  -- Use gamePhase if available
-    love.graphics.print(floorText, 20, statY + 25)  -- Increased from 20
+    local floorText = "Depth: " .. (gameState.gamePhase or gameState.currentLevel or 1)
+    love.graphics.print(floorText, x, y + 25)
     
     -- Health bar
+    y = y + 55  -- Additional spacing
     UI.drawProgressBar(
-        150, statY, 200, 18,  -- Increased height from 15
+        x, y, SIDE_PANEL_WIDTH - 30, 18,
         player.health / player.maxHealth,
         COLORS.health, COLORS.health_bg,
         "Health: " .. player.health .. "/" .. player.maxHealth
@@ -121,8 +153,9 @@ function UI.drawPlayerStats(ui, gameState)
         end
         
         -- Draw sanity bar
+        y = y + 24
         UI.drawProgressBar(
-            150, statY + 24, 200, 18,
+            x, y, SIDE_PANEL_WIDTH - 30, 18,
             player.sanity.current / player.sanity.max,
             sanityColor, COLORS.sanity_bg,
             "Sanity: " .. player.sanity.current .. "/" .. player.sanity.max
@@ -131,23 +164,26 @@ function UI.drawPlayerStats(ui, gameState)
         -- Display sanity state if it's concerning
         if player.sanity.current <= Sanity.THRESHOLDS.DISTURBED then
             local stateName, _ = Sanity.getStateDescription(player.sanity)
+            y = y + 24
             love.graphics.setColor(sanityColor)
             love.graphics.print(
                 "Mental State: " .. stateName,
-                370, statY + 24
+                x, y
             )
         end
     end
     
     -- Defense and damage stats
+    y = y + 30
     love.graphics.setColor(COLORS.text)
-    love.graphics.print("Defense: " .. player.defense, 370, statY)
-    love.graphics.print("Damage: " .. player.damage, 500, statY)
+    love.graphics.print("Defense: " .. player.defense, x, y)
+    love.graphics.print("Damage: " .. player.damage, x + 120, y)
     
     -- Artifact pieces or quest progress
     if gameState.artifactPieces then
+        y = y + 25
         love.graphics.setColor(COLORS.highlight)
-        love.graphics.print("Artifact Shards: " .. gameState.artifactPieces .. "/5", 500, statY + 25)  -- Moved from 370 to 500
+        love.graphics.print("Artifact Shards: " .. gameState.artifactPieces .. "/5", x, y)
     end
     
     -- Additional status effects including sanity effects
@@ -182,11 +218,12 @@ function UI.drawPlayerStats(ui, gameState)
     
     -- Display all effects
     if #effectsToShow > 0 then
+        y = y + 25
         love.graphics.setColor(COLORS.text)
-        love.graphics.print("Status:", 150, statY + 49)  -- Increased from 35
+        love.graphics.print("Status:", x, y)
+        y = y + 20
         
-        local effectX = 210  -- Increased from 200 for more spacing
-        for _, effect in ipairs(effectsToShow) do
+        for i, effect in ipairs(effectsToShow) do
             if effect.type == "buff" then
                 love.graphics.setColor(0.3, 0.6, 0.3)
             elseif effect.type == "debuff" then
@@ -195,48 +232,29 @@ function UI.drawPlayerStats(ui, gameState)
                 love.graphics.setColor(COLORS.text)
             end
             
-            love.graphics.print(effect.name, effectX, statY + 49)
-            effectX = effectX + 120  -- Increased from 100 for more spacing
+            love.graphics.print(effect.name, x, y)
+            y = y + 20  -- Stack effects vertically
         end
-    end
-end
-
--- Draw a progress bar (for health, mana, etc.)
-function UI.drawProgressBar(x, y, width, height, fillPercent, fillColor, bgColor, label)
-    -- Background
-    love.graphics.setColor(bgColor or {0.2, 0.2, 0.2})
-    love.graphics.rectangle("fill", x, y, width, height)
-    
-    -- Filled portion
-    love.graphics.setColor(fillColor or {0.7, 0.7, 0.7})
-    local fillWidth = math.max(0, math.min(width * fillPercent, width))
-    if fillWidth > 0 then
-        love.graphics.rectangle("fill", x, y, fillWidth, height)
-    end
-    
-    -- Border
-    love.graphics.setColor(COLORS.border)
-    love.graphics.rectangle("line", x, y, width, height)
-    
-    -- Label
-    if label then
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(label, x + 5, y + 2)
     end
 end
 
 -- Draw the side panel with additional information
 function UI.drawSidePanel(ui, gameState)
-    local x = ui.width - SIDE_PANEL_WIDTH + 15  -- Increased from 10 for more space
-    local y = 25  -- Increased from 20 for more space at top
+    local x = ui.width - SIDE_PANEL_WIDTH + 15
+    local y = 15  -- Starting position
     
     -- Draw the title
     love.graphics.setColor(COLORS.highlight)
     love.graphics.print("EBON VEIN", x, y)
     
-    -- Show inventory reminder
-    y = y + 45  -- Increased from 40 for more vertical spacing
-    love.graphics.setColor(COLORS.text)
+    -- Draw player stats (now in side panel)
+    UI.drawPlayerStats(ui, gameState)
+    
+    -- Move down to show inventory after stats
+    y = 310  -- Position after player stats
+    
+    -- Show inventory
+    love.graphics.setColor(COLORS.highlight)
     love.graphics.print("Inventory (" .. #gameState.player.inventory .. " items)", x, y)
     
     -- Show equipped items or most important ones
@@ -246,69 +264,76 @@ function UI.drawSidePanel(ui, gameState)
             local item = gameState.player.inventory[i]
             love.graphics.setColor(item.color or COLORS.text)
             love.graphics.print(item.symbol .. " " .. item.name, x + 10, y)
-            y = y + 25  -- Increased from 20 for more spacing between items
+            y = y + 25
         end
         
         if #gameState.player.inventory > 3 then
             love.graphics.setColor(COLORS.text)
             love.graphics.print("(+" .. (#gameState.player.inventory - 3) .. " more)", x + 10, y)
-            y = y + 25  -- Increased from 20
+            y = y + 25
         end
     else
         love.graphics.setColor(COLORS.text)
         y = y + 25
         love.graphics.print("No items", x + 10, y)
-        y = y + 25  -- Increased from 20
+        y = y + 25
     end
     
     -- Show current objective
-    y = y + 30  -- Increased from 25 for more separation
+    y = y + 25  -- spacing
     love.graphics.setColor(COLORS.highlight)
     love.graphics.print("Objective:", x, y)
-    y = y + 25  -- Increased from 20
+    y = y + 25
     love.graphics.setColor(COLORS.text)
     love.graphics.print("Find the exit (X)", x + 10, y)
     
     -- Enemy count
-    y = y + 45  -- Increased from 40
+    y = y + 40
     love.graphics.setColor(COLORS.highlight)
     love.graphics.print("Enemies nearby: " .. #gameState.enemies, x, y)
     
     -- Position
-    y = y + 45  -- Increased from 40
+    y = y + 25
     love.graphics.setColor(COLORS.text)
     love.graphics.print("Position: " .. gameState.player.x .. ", " .. gameState.player.y, x, y)
     
-    -- Toggle help text display
-    y = ui.height - PANEL_HEIGHT - 50  -- Increased from 40 to move up from bottom
+    -- Draw abilities section at the bottom of the side panel
+    if gameState.player.abilities then
+        y = y + 40
+        love.graphics.setColor(COLORS.highlight)
+        love.graphics.print("Abilities:", x, y)
+        y = y + 25
+        
+        for i, ability in ipairs(gameState.player.abilities) do
+            -- Show cooldown or ready status
+            local status = "Ready"
+            if ability.currentCooldown > 0 then
+                status = "CD: " .. ability.currentCooldown
+            end
+            
+            love.graphics.setColor(COLORS.text)
+            love.graphics.print(i .. ": " .. ability.name .. " (" .. status .. ")", x + 10, y)
+            y = y + 20
+        end
+    end
+    
+    -- Controls reminder at bottom of side panel
+    y = ui.height - 60
     love.graphics.setColor(COLORS.key)
     love.graphics.print("Press H for help", x, y)
-    
-    -- Toggle minimap display
-    y = y + 25  -- Increased from 20
-    love.graphics.setColor(COLORS.key)
-    love.graphics.print("Press M for minimap", x, y)
+    y = y + 25
+    love.graphics.print("Press L for legend", x, y)
 end
 
--- Draw the message log with proper text wrapping and adjusted positioning
+-- Draw the message log with proper text wrapping - now uses full bottom width
 function UI.drawMessages(ui, gameState)
-    -- Increased vertical position to avoid overlapping with stats
     local msgX = 20
-    local msgY = ui.height - 60  -- Adjusted from 80 to move messages lower
-    local msgWidth = ui.width - SIDE_PANEL_WIDTH - 40  -- Width for text wrapping
+    local msgY = ui.height - PANEL_HEIGHT + 15  -- Top of bottom panel
+    local msgWidth = ui.width - SIDE_PANEL_WIDTH - 40  -- Full width of bottom panel minus margins
     
-    -- Calculate how many messages we can show before overlapping with stats
-    local maxMessages = 3
-    local messageSpacing = 25
-    
-    -- Add a decorative separator line between stats and messages
-    love.graphics.setColor(COLORS.border)
-    love.graphics.line(
-        20, 
-        msgY - messageSpacing, 
-        ui.width - SIDE_PANEL_WIDTH - 20, 
-        msgY - messageSpacing
-    )
+    -- Calculate how many messages we can show
+    local maxMessages = 4  -- Can fit more with dedicated space
+    local messageSpacing = 22
     
     love.graphics.setColor(COLORS.text)
     
@@ -319,7 +344,7 @@ function UI.drawMessages(ui, gameState)
         local alpha = 1 - (0.2 * (msgIndex - 1))
         love.graphics.setColor(COLORS.text[1], COLORS.text[2], COLORS.text[3], alpha)
         
-        -- Use printf instead of print to enable text wrapping
+        -- Use printf for text wrapping
         love.graphics.printf(
             gameState.messages[i],
             msgX, 
@@ -333,57 +358,20 @@ function UI.drawMessages(ui, gameState)
         local _, wrappedText = font:getWrap(gameState.messages[i], msgWidth)
         local textHeight = #wrappedText * font:getHeight() 
         
-        -- Adjust spacing based on text height with minimum value
+        -- Adjust spacing based on text height
         msgY = msgY + math.max(messageSpacing, textHeight + 5)
     end
     
     love.graphics.setColor(1, 1, 1)
 end
 
--- Draw controls help
-function UI.drawControls(ui, gameState)
-    if not gameState.ui.showHelp then return end
-    
-    -- Draw translucent background
-    love.graphics.setColor(0, 0, 0, 0.8)
-    love.graphics.rectangle("fill", 100, 100, ui.width - 200, ui.height - 200)
-    
-    love.graphics.setColor(COLORS.highlight)
-    love.graphics.print("CONTROLS", 120, 120)
-    
-    love.graphics.setColor(COLORS.text)
-    local y = 160  -- Increased from 150 for more space at top
-    local commands = {
-        {"Arrow keys", "Move player"},
-        {"I", "Open/close inventory"},
-        {"E", "Use item or interact"},
-        {"R", "Generate new level (debug)"},
-        {"H", "Show/hide this help"},
-        {"M", "Toggle minimap"},
-        {"ESC", "Pause game"},
-        {"Q", "Quit game"}
-    }
-    
-    for _, cmd in ipairs(commands) do
-        love.graphics.setColor(COLORS.key)
-        love.graphics.print(cmd[1], 120, y)
-        love.graphics.setColor(COLORS.text)
-        love.graphics.print(cmd[2], 250, y)  -- Increased from 220 for more spacing
-        y = y + 30  -- Increased from 25 for more vertical spacing
-    end
-    
-    love.graphics.setColor(COLORS.highlight)
-    love.graphics.print("Press H or ESC to close", 120, y + 25)  -- Increased from 20
-    love.graphics.setColor(1, 1, 1)
-end
-
--- Draw the minimap in the corner
+-- Draw minimap in the top-left instead of overlapping with side panel
 function UI.drawMinimap(ui, gameState)
-    local mapSize = 120  -- Slightly larger minimap
-    local mapX = ui.width - SIDE_PANEL_WIDTH - mapSize - 25
+    local mapSize = 120
+    local mapX = 25  -- Left side position
     local mapY = 25
     
-    -- Calculate cell size based on map dimensions to ensure it fits
+    -- Calculate cell size based on map dimensions
     local cellSize = math.min(
         mapSize / gameState.map.width,
         mapSize / gameState.map.height
