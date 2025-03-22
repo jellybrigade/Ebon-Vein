@@ -9,6 +9,8 @@ local Enemy = require("enemy")
 local Combat = require("combat")
 local Item = require("item")
 local Visibility = require("visibility")  -- Add visibility module
+local UI = require("ui")  -- Add UI module
+local Story = require("story") -- Add story module
 
 -- Game state
 local gameState = {
@@ -27,7 +29,8 @@ local gameState = {
         defense = 0,
         name = "Player",
         inventory = {},
-        visibilityRange = 8 -- Field of vision radius
+        visibilityRange = 8, -- Field of vision radius
+        statusEffects = {}   -- For tracking buffs/debuffs
     },
     enemies = {},
     items = {},
@@ -35,7 +38,16 @@ local gameState = {
     showInventory = false,
     selectedItem = 1,
     rangedAttacks = {},
-    visibilityMap = nil  -- Add visibility map
+    visibilityMap = nil,  -- Add visibility map
+    ui = nil,            -- UI state
+    currentLevel = 0,    -- Start at prologue (level 0)
+    artifactPieces = 0,  -- Track collected artifact pieces
+    mouseX = 0,          -- Track mouse position for tooltips
+    mouseY = 0,
+    hoveredEntity = nil,  -- Entity under the mouse cursor
+    storyScreen = nil,    -- Current story screen if active
+    gamePhase = Story.PHASE.PROLOGUE,  -- Current story phase
+    levelEffects = {}     -- Level-specific visual effects
 }
 
 -- Initialize the game
@@ -44,7 +56,26 @@ function love.load()
     local font = love.graphics.newFont("fonts/DejaVuSansMono.ttf", 16)
     love.graphics.setFont(font)
     
-    initializeGame()
+    -- Initialize UI
+    gameState.ui = UI.init(love.graphics.getWidth(), love.graphics.getHeight())
+    
+    -- Set window title
+    love.window.setTitle("Ebon Vein - Descent to Darkness")
+    
+    -- Enable mouse
+    love.mouse.setVisible(true)
+    
+    -- Start with the prologue
+    showPrologue()
+end
+
+-- Show the prologue narrative
+function showPrologue()
+    gameState.storyScreen = Story.showNarrativeScreen(Story.PHASE.PROLOGUE, function()
+        -- After prologue, initialize the first level
+        gameState.gamePhase = Story.PHASE.LEVEL_1
+        initializeGame()
+    end)
 end
 
 -- Initialize/reset the game
@@ -54,16 +85,28 @@ function initializeGame()
     gameState.victory = false
     gameState.gameOverMessage = ""
 
-    -- Initialize the map
-    gameState.map = Map.create(40, 25)
+    -- Initialize the map with level-appropriate size and features
+    local mapSize = 40 + (gameState.gamePhase * 5) -- Maps get larger with depth
+    gameState.map = Map.create(mapSize, 25, gameState.gamePhase)
     
     -- Create visibility map
     gameState.visibilityMap = Visibility.createMap(gameState.map.width, gameState.map.height)
     
-    -- Reset player stats
-    gameState.player.health = gameState.player.maxHealth
-    gameState.player.damage = 2
-    gameState.player.defense = 0
+    -- Reset player stats with some progression
+    if gameState.gamePhase == Story.PHASE.LEVEL_1 then
+        -- Starting stats for level 1
+        gameState.player.health = gameState.player.maxHealth
+        gameState.player.damage = 2
+        gameState.player.defense = 0
+    else
+        -- Increase stats for each level
+        gameState.player.maxHealth = 10 + (gameState.gamePhase * 2)
+        gameState.player.health = gameState.player.maxHealth
+        gameState.player.damage = 2 + math.floor(gameState.gamePhase * 0.5)
+        gameState.player.defense = math.floor((gameState.gamePhase - 1) * 0.5)
+    end
+    
+    gameState.player.statusEffects = {}
     
     -- Place player in the center of the first room
     gameState.player.x, gameState.player.y = Map.getFirstRoomCenter(gameState.map)
@@ -71,33 +114,48 @@ function initializeGame()
     -- Update initial visibility
     updateVisibility()
     
-    -- Spawn enemies
-    gameState.enemies = Enemy.spawnEnemies(gameState.map, 12)
+    -- Spawn enemies - more and stronger with each level
+    gameState.enemies = Enemy.spawnEnemies(gameState.map, 10 + (gameState.gamePhase * 3), gameState.gamePhase)
     
-    -- Spawn items
-    gameState.items = Item.spawnItems(gameState.map, 6)
+    -- Spawn items - different distribution based on level
+    gameState.items = Item.spawnItems(gameState.map, 5 + gameState.gamePhase, gameState.gamePhase)
     
-    -- Reset inventory on new game
-    gameState.player.inventory = {}
+    -- Reset inventory between games, but not between levels
+    if gameState.gamePhase == Story.PHASE.LEVEL_1 then
+        gameState.player.inventory = {}
+    end
     
     -- Reset ranged attack animations
     gameState.rangedAttacks = {}
     
-    -- Add initial message
+    -- Add initial message based on current level
     gameState.messages = {}
-    addMessage("You enter the Abyss, seeking the Black Heart...")
-    addMessage("Beware the shadows that lurk within...")
-    addMessage("Find the golden exit (X) to escape with the artifact!")
+    addMessage(Story.getLevelDescription(gameState.gamePhase))
+    
+    -- Apply visual theme for the current level
+    Story.applyVisualTheme(gameState.gamePhase, Renderer, Map)
+    
+    -- Get level-specific effects
+    gameState.levelEffects = Story.getLevelEffects(gameState.gamePhase)
+    
+    -- Show UI notification
+    if gameState.ui then
+        UI.addNotification(gameState.ui, Story.getLevelName(gameState.gamePhase), "info")
+    end
 end
 
 -- Update the visibility map based on player position
 function updateVisibility()
+    -- Reduced visibility in deeper levels
+    local visRange = gameState.player.visibilityRange - math.floor(gameState.gamePhase * 0.5)
+    visRange = math.max(4, visRange) -- Ensure minimum visibility
+    
     Visibility.updateFOV(
         gameState.map, 
         gameState.visibilityMap, 
         gameState.player.x, 
         gameState.player.y,
-        gameState.player.visibilityRange
+        visRange
     )
 end
 
@@ -113,15 +171,40 @@ end
 -- Make the addMessage function available to other modules
 gameState.addMessage = addMessage
 
--- Check for victory conditions
+-- Check for victory/level transition conditions
 function checkVictory()
     -- Check if player is on the exit tile
     if gameState.map.exitX == gameState.player.x and gameState.map.exitY == gameState.player.y then
-        gameState.victory = true
-        gameState.gameOver = true
-        gameState.gameOverMessage = "You found the Black Heart artifact and escaped the Abyss!"
-        addMessage("Victory! You found the Black Heart artifact!")
-        return true
+        -- Progress to the next level
+        if gameState.gamePhase < Story.PHASE.FINALE then
+            -- Found an artifact piece, show level transition
+            gameState.artifactPieces = gameState.artifactPieces + 1
+            
+            -- Display level transition narrative
+            local nextPhase = gameState.gamePhase + 1
+            gameState.storyScreen = Story.showNarrativeScreen(nextPhase, function()
+                -- After narrative, initialize the next level
+                gameState.gamePhase = nextPhase
+                initializeGame()
+            end)
+            
+            addMessage("You found a shard of the Black Heart!")
+            if gameState.ui then
+                UI.addNotification(gameState.ui, "Artifact Shard Recovered", "info")
+            end
+            
+            return true
+        else
+            -- Final victory - show epilogue
+            gameState.storyScreen = Story.showNarrativeScreen(Story.PHASE.EPILOGUE, function()
+                -- After epilogue, set game over state
+                gameState.victory = true
+                gameState.gameOver = true
+                gameState.gameOverMessage = "You have become one with the Abyss."
+            end)
+            
+            return true
+        end
     end
     return false
 end
@@ -131,8 +214,22 @@ function checkDefeat()
     if gameState.player.health <= 0 then
         gameState.victory = false
         gameState.gameOver = true
-        gameState.gameOverMessage = "Your journey ends here, consumed by the darkness of the Abyss..."
+        
+        -- Choose game over message based on current level
+        local messages = {
+            "Your journey ends here, consumed by the darkness of the Abyss...",
+            "The echoes of humanity fade as your life ebbs away...",
+            "The shifting labyrinth claims another victim...",
+            "Madness consumes you as your light fades...",
+            "At the breaking point, you shatter completely...",
+            "The Black Heart rejects you, and the Abyss devours your remains..."
+        }
+        gameState.gameOverMessage = messages[math.min(gameState.gamePhase, #messages)]
+        
         addMessage("You have been defeated!")
+        if gameState.ui then
+            UI.addNotification(gameState.ui, "Darkness consumes you...", "danger")
+        end
         return true
     end
     return false
@@ -193,6 +290,11 @@ function pickUpItem(itemIndex)
     local item = gameState.items[itemIndex]
     addMessage("You found a " .. item.name .. "!")
     
+    -- Show notification
+    if gameState.ui then
+        UI.addNotification(gameState.ui, "Found: " .. item.name, "info")
+    end
+    
     -- Add to inventory
     table.insert(gameState.player.inventory, item)
     
@@ -206,6 +308,11 @@ function useItem(itemIndex)
     if item then
         local result = item.use(gameState.player)
         addMessage(result)
+        
+        -- Show notification
+        if gameState.ui then
+            UI.addNotification(gameState.ui, "Used: " .. item.name, "info")
+        end
         
         -- Remove from inventory after use
         table.remove(gameState.player.inventory, itemIndex)
@@ -239,6 +346,30 @@ function findEnemyAt(x, y)
     return nil
 end
 
+-- Find entity at specific coordinates (for tooltips)
+function findEntityAt(x, y)
+    -- Check for enemies
+    for _, enemy in ipairs(gameState.enemies) do
+        if enemy.x == x and enemy.y == y then
+            return enemy
+        end
+    end
+    
+    -- Check for items
+    for _, item in ipairs(gameState.items) do
+        if item.x == x and item.y == y then
+            return item
+        end
+    end
+    
+    -- Check for player
+    if gameState.player.x == x and gameState.player.y == y then
+        return gameState.player
+    end
+    
+    return nil
+end
+
 -- Update enemies (process their turns)
 function updateEnemies()
     for i = #gameState.enemies, 1, -1 do
@@ -261,12 +392,77 @@ end
 
 -- Update game logic (turn-based)
 function love.update(dt)
-    -- Turn-based games typically don't need continuous updates
-    -- Logic will be handled in keypressed events
+    -- If story screen is active, update it
+    if gameState.storyScreen and gameState.storyScreen.active then
+        gameState.storyScreen.update(dt)
+        return
+    end
+    
+    -- Update the UI system
+    if gameState.ui then
+        UI.update(gameState.ui, gameState, dt)
+    end
+    
+    -- Update mouse position
+    gameState.mouseX = love.mouse.getX()
+    gameState.mouseY = love.mouse.getY()
+    
+    -- Check for entities under cursor for tooltips
+    if not gameState.gameOver and not gameState.showInventory then
+        -- Convert mouse screen position to grid coordinates
+        local gridX = math.floor((gameState.mouseX - 50) / 16) + 1
+        local gridY = math.floor((gameState.mouseY - 50) / 16) + 1
+        
+        -- Check if these coordinates are valid and visible
+        if Visibility.isVisible(gameState.visibilityMap, gridX, gridY) then
+            -- Find entity at this position
+            gameState.hoveredEntity = findEntityAt(gridX, gridY)
+            
+            -- Show tooltip for entity
+            if gameState.hoveredEntity and gameState.ui then
+                UI.showEntityTooltip(gameState.ui, gameState.hoveredEntity, 
+                    gameState.mouseX + 10, gameState.mouseY + 10)
+            end
+        else
+            gameState.hoveredEntity = nil
+        end
+    end
+    
+    -- Apply level-specific ambient effects
+    if gameState.levelEffects.whispers and math.random() < 0.002 then
+        -- Random whispers in deeper levels
+        local whispers = {
+            "...come closer...",
+            "...you belong here...",
+            "...no escape...",
+            "...join us...",
+            "...the heart beats for you..."
+        }
+        addMessage(whispers[math.random(#whispers)])
+    end
+    
+    if gameState.levelEffects.heartbeat and math.random() < 0.005 then
+        -- Heartbeat effect in final levels
+        -- This could be expanded with sound effects
+        if gameState.ui then
+            UI.addNotification(gameState.ui, "*thump* The Black Heart pulses...", "warning")
+        end
+    end
 end
 
 -- Process player input
 function love.keypressed(key)
+    -- If story screen is active, let it handle the input
+    if gameState.storyScreen and gameState.storyScreen.active then
+        gameState.storyScreen.keypressed(key)
+        return
+    end
+
+    -- Check if UI wants to handle this input first
+    if gameState.ui and UI.handleInput(gameState.ui, key) then
+        return -- UI handled the input
+    end
+    
     -- If game is over, only respond to restart key
     if gameState.gameOver then
         if key == "space" then
@@ -289,7 +485,7 @@ function love.keypressed(key)
             gameState.selectedItem = math.max(1, gameState.selectedItem - 1)
         elseif key == "down" then
             gameState.selectedItem = math.min(#gameState.player.inventory, gameState.selectedItem + 1)
-        elseif key == "return" then
+        elseif key == "return" or key == "e" then
             if #gameState.player.inventory > 0 then
                 useItem(gameState.selectedItem)
             end
@@ -297,7 +493,14 @@ function love.keypressed(key)
         return
     end
     
-    if key == "escape" or key == "q" then
+    if key == "escape" then
+        -- Show help instead of quitting directly
+        if gameState.ui then
+            gameState.ui.showHelp = true
+            gameState.ui.helpDelay = 0 -- Don't auto-hide
+        end
+        return
+    elseif key == "q" then
         love.event.quit()
         return
     end
@@ -330,11 +533,29 @@ end
 
 -- Draw the game
 function love.draw()
+    -- If a story screen is active, draw only that
+    if gameState.storyScreen and gameState.storyScreen.active then
+        gameState.storyScreen.draw()
+        return
+    end
+    
     -- Clear the screen
     love.graphics.clear(0, 0, 0)
     
+    -- Apply level-specific visual effects
+    if gameState.levelEffects.pulsingWalls then
+        -- Make walls pulse in the final level
+        local pulseFactor = 0.1 + math.sin(love.timer.getTime() * 2) * 0.05
+        Renderer.setPulseEffect(pulseFactor)
+    end
+    
+    if gameState.levelEffects.visualFilter == "distortion" then
+        -- Apply visual distortion in level 4
+        Renderer.setDistortionEffect(love.timer.getTime())
+    end
+    
     -- Render the map and entities with visibility
-    Renderer.drawMap(gameState.map, gameState.visibilityMap)
+    Renderer.drawMap(gameState.map, gameState.visibilityMap, gameState.gamePhase)
     
     -- Draw items (only if visible)
     for _, item in ipairs(gameState.items) do
@@ -358,16 +579,21 @@ function love.draw()
         Renderer.drawRangedAttack(attack.from, attack.to)
     end
     
-    -- Display game title
-    love.graphics.setColor(0.7, 0.2, 0.2)
-    love.graphics.print("EBON VEIN", 10, 10)
-    love.graphics.setColor(1, 1, 1)
-    
-    -- Draw messages log
-    Renderer.drawMessages(gameState.messages, 10, 550)
-    
-    -- Draw UI elements
-    Renderer.drawUI(gameState)
+    -- Draw the UI frame if available
+    if gameState.ui then
+        UI.drawFrame(gameState.ui, gameState)
+    else
+        -- Legacy UI elements if UI module not available
+        love.graphics.setColor(0.7, 0.2, 0.2)
+        love.graphics.print("EBON VEIN", 10, 10)
+        love.graphics.setColor(1, 1, 1)
+        
+        -- Draw messages log
+        Renderer.drawMessages(gameState.messages, 10, 550)
+        
+        -- Draw legacy UI elements
+        Renderer.drawUI(gameState)
+    end
     
     -- Draw inventory if open
     if gameState.showInventory then
@@ -378,4 +604,10 @@ function love.draw()
     if gameState.gameOver then
         Renderer.drawGameOver(gameState.gameOverMessage, gameState.victory)
     end
+end
+
+-- Track mouse movement for tooltips
+function love.mousemoved(x, y)
+    gameState.mouseX = x
+    gameState.mouseY = y
 end
