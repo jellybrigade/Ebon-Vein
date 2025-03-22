@@ -955,68 +955,249 @@ function UI.drawTooltip(ui)
     -- ...existing code...
 end
 
--- Draw inventory panel
+-- Draw inventory panel (complete reimplementation with proper scaling)
 function UI.drawInventory(ui, inventory, selection, x, y, width, height)
-    local startX = x
-    local startY = y
+    -- Set up base dimensions and colors with proper scaling
+    local scale = ui.scale
+    local padding = math.floor(10 * scale)
+    local itemHeight = math.floor(30 * scale)
+    local sectionSpacing = math.floor(25 * scale)
+    local textSpacing = math.floor(20 * scale)
+    local bottomMargin = math.floor(40 * scale)
     
-    love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
-    love.graphics.rectangle("fill", startX, startY, width, height)
+    -- Colors
+    local backgroundColor = {0.1, 0.1, 0.15, 0.95}
+    local borderColor = {0.4, 0.4, 0.5, 1}
+    local titleColor = {0.7, 0.7, 0.8}
+    local headerColor = {0.6, 0.5, 0.3}
+    local selectionColor = {0.2, 0.2, 0.35, 0.8}
     
-    love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.rectangle("line", startX, startY, width, height)
+    -- Split the inventory panel with proper scaling
+    local leftPanelWidth = math.floor(width * 0.4)
+    local rightPanelWidth = width - leftPanelWidth
     
+    -- Draw main background
+    love.graphics.setColor(backgroundColor)
+    love.graphics.rectangle("fill", x, y, width, height)
+    
+    -- Draw panel border
+    love.graphics.setColor(borderColor)
+    love.graphics.rectangle("line", x, y, width, height)
+    
+    -- Draw vertical separator between the two panels
+    love.graphics.line(
+        x + leftPanelWidth, 
+        y + padding, 
+        x + leftPanelWidth, 
+        y + height - padding
+    )
+    
+    -- Draw title
     love.graphics.setFont(ui.fonts.medium)
-    love.graphics.print("Inventory", startX + 10, startY + 10)
+    love.graphics.setColor(titleColor)
+    love.graphics.printf("INVENTORY", x, y + padding, width, "center")
     
+    -- Item count subtitle with proper vertical positioning
+    love.graphics.setFont(ui.fonts.small)
+    local titleHeight = ui.fonts.medium:getHeight()
+    local subtitleY = y + padding + titleHeight + math.floor(5 * scale)
+    local itemCountText = #inventory .. " items in pack"
+    love.graphics.printf(itemCountText, x, subtitleY, width, "center")
+    
+    -- Calculate starting Y position for list based on title height
+    local headerHeight = padding + titleHeight + ui.fonts.small:getHeight() + math.floor(15 * scale)
+    local listStartY = y + headerHeight
+    local listHeight = height - headerHeight - padding
+    
+    -- Empty inventory message
     if #inventory == 0 then
         love.graphics.setFont(ui.fonts.regular)
-        love.graphics.print("Empty", startX + 10, startY + 40)
-    else
-        -- Calculate item positions
-        local itemStartY = startY + 40
-        local itemHeight = 25
-        
-        for i, item in ipairs(inventory) do
-            local itemY = itemStartY + (i - 1) * itemHeight
-            
-            -- Draw selection highlight
-            if i == selection then
-                love.graphics.setColor(0.2, 0.2, 0.3, 0.7)
-                love.graphics.rectangle("fill", startX + 5, itemY, width - 10, itemHeight)
-            end
-            
-            -- Draw item symbol
-            love.graphics.setColor(unpack(item.color))
-            love.graphics.setFont(ui.fonts.regular)
-            love.graphics.print(item.symbol, startX + 10, itemY)
-            
-            -- Draw item name
-            love.graphics.setColor(0.9, 0.9, 0.9)
-            love.graphics.print(item.name, startX + 30, itemY)
-            
-            -- Draw current selection description at the bottom, not overlapping
-            if i == selection then
-                local descY = startY + height - 60
-                local descWidth = width - 20
-                
-                love.graphics.setColor(0.2, 0.2, 0.3, 0.7)
-                love.graphics.rectangle("fill", startX + 10, descY, descWidth, 50)
-                
-                love.graphics.setColor(0.9, 0.9, 0.9)
-                love.graphics.rectangle("line", startX + 10, descY, descWidth, 50)
-                
-                -- Draw description with word wrapping
-                love.graphics.setFont(ui.fonts.small)
-                UI.drawWrappedText(ui, item.description, startX + 15, descY + 5, descWidth - 10)
-            end
-        end
+        love.graphics.setColor(0.6, 0.6, 0.7, 0.8)
+        love.graphics.printf(
+            "Your pack is empty.\nNothing but dust and shadows.",
+            x + padding, 
+            y + (height / 2) - (ui.fonts.regular:getHeight() * 1.5),
+            width - padding * 2, 
+            "center"
+        )
+        return
     end
     
-    -- Draw controls
-    love.graphics.setColor(0.7, 0.7, 0.7)
+    -- Calculate how many items we can display with proper scaling
+    local maxVisibleItems = math.floor(listHeight / itemHeight)
+    maxVisibleItems = math.max(1, maxVisibleItems) -- Ensure at least one item is visible
+    
+    -- Calculate scroll position to keep selected item in view
+    local scrollOffset = 0
+    if selection > maxVisibleItems then
+        scrollOffset = math.min(selection - math.ceil(maxVisibleItems/2), #inventory - maxVisibleItems)
+        scrollOffset = math.max(0, scrollOffset)  -- Ensure we don't go negative
+    end
+    
+    -- Draw Left Panel: Items List
+    love.graphics.setFont(ui.fonts.regular)
+    
+    -- Draw the section header with proper positioning
+    love.graphics.setColor(headerColor)
+    love.graphics.print("ITEMS", x + padding, listStartY)
+    
+    -- Item list with scrolling and proper spacing
+    local itemStartY = listStartY + ui.fonts.regular:getHeight() + math.floor(8 * scale)
+    for i = 1 + scrollOffset, math.min(#inventory, maxVisibleItems + scrollOffset) do
+        local item = inventory[i]
+        local itemY = itemStartY + ((i - scrollOffset - 1) * itemHeight)
+        
+        -- Highlight selected item
+        if i == selection then
+            love.graphics.setColor(selectionColor)
+            love.graphics.rectangle(
+                "fill", 
+                x + padding - math.floor(5 * scale), 
+                itemY, 
+                leftPanelWidth - padding * 2 + math.floor(10 * scale), 
+                itemHeight - math.floor(2 * scale)
+            )
+        end
+        
+        -- Draw item symbol with its color
+        love.graphics.setColor(unpack(item.color or {1,1,1}))
+        love.graphics.print(item.symbol, x + padding, itemY + math.floor(itemHeight * 0.25))
+        
+        -- Draw item name
+        if i == selection then
+            love.graphics.setColor(1, 1, 1)  -- Brighter text for selected item
+        else
+            love.graphics.setColor(0.8, 0.8, 0.9)
+        end
+        love.graphics.print(
+            item.name, 
+            x + padding + math.floor(20 * scale),
+            itemY + math.floor(itemHeight * 0.25)
+        )
+    end
+    
+    -- Draw scrollbar if needed, with proper scaling
+    if #inventory > maxVisibleItems then
+        local scrollbarWidth = math.max(3, math.floor(3 * scale))
+        local scrollTrackY = itemStartY
+        local scrollTrackHeight = maxVisibleItems * itemHeight
+        
+        -- Calculate scrollbar dimensions
+        local scrollbarHeight = scrollTrackHeight * math.min(1, maxVisibleItems / #inventory)
+        local scrollbarY = scrollTrackY + (scrollTrackHeight - scrollbarHeight) * 
+                         (scrollOffset / math.max(1, #inventory - maxVisibleItems))
+        
+        -- Draw the track
+        love.graphics.setColor(0.2, 0.2, 0.25, 0.5)
+        love.graphics.rectangle(
+            "fill",
+            x + leftPanelWidth - scrollbarWidth - math.floor(5 * scale),
+            scrollTrackY,
+            scrollbarWidth,
+            scrollTrackHeight
+        )
+        
+        -- Draw the handle
+        love.graphics.setColor(0.5, 0.5, 0.6, 0.8)
+        love.graphics.rectangle(
+            "fill",
+            x + leftPanelWidth - scrollbarWidth - math.floor(5 * scale),
+            scrollbarY,
+            scrollbarWidth,
+            scrollbarHeight
+        )
+    end
+    
+    -- Draw Right Panel: Item Details (only if an item is selected)
+    if selection > 0 and selection <= #inventory then
+        local item = inventory[selection]
+        local detailX = x + leftPanelWidth + padding
+        local detailY = listStartY
+        local detailWidth = rightPanelWidth - padding * 2
+        
+        -- Section header
+        love.graphics.setColor(headerColor)
+        love.graphics.print("DETAILS", detailX, detailY)
+        
+        -- Calculate positions based on font heights for proper scaling
+        local headerHeight = ui.fonts.regular:getHeight()
+        local nameY = detailY + headerHeight + math.floor(5 * scale)
+        
+        -- Item name with larger font
+        love.graphics.setFont(ui.fonts.medium)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(item.name, detailX, nameY)
+        
+        -- Symbol position based on text height
+        local mediumHeight = ui.fonts.medium:getHeight()
+        local symbolY = nameY + mediumHeight + math.floor(10 * scale)
+        
+        -- Item symbol with color
+        love.graphics.setColor(unpack(item.color or {1,1,1}))
+        love.graphics.setFont(ui.fonts.large)
+        love.graphics.print(item.symbol, detailX, symbolY)
+        
+        -- Calculate separator position based on symbol
+        local largeHeight = ui.fonts.large:getHeight()
+        local separatorY = symbolY + math.floor(largeHeight * 0.6)
+        
+        -- Draw visual separator between symbol and description
+        love.graphics.setColor(0.3, 0.3, 0.4, 0.6)
+        love.graphics.line(
+            detailX + math.floor(30 * scale), 
+            separatorY,
+            detailX + detailWidth - math.floor(20 * scale), 
+            separatorY
+        )
+        
+        -- Description header positioned after separator
+        love.graphics.setFont(ui.fonts.regular)
+        love.graphics.setColor(0.7, 0.7, 0.8)
+        local descHeaderY = separatorY + math.floor(15 * scale)
+        love.graphics.print("Description:", detailX, descHeaderY)
+        
+        -- Item description with text wrapping, positioned after header
+        local descY = descHeaderY + headerHeight + math.floor(5 * scale)
+        love.graphics.setColor(0.9, 0.9, 0.9)
+        love.graphics.printf(
+            item.description,
+            detailX,
+            descY,
+            detailWidth - math.floor(20 * scale),
+            "left"
+        )
+        
+        -- Draw use prompt at the bottom with proper scaling
+        love.graphics.setColor(0.6, 0.7, 1, 0.9)
+        love.graphics.printf(
+            "Press ENTER to use this item",
+            detailX,
+            y + height - math.floor(bottomMargin * 0.8),
+            detailWidth,
+            "center"
+        )
+    else
+        -- If no item is selected (shouldn't happen normally)
+        love.graphics.setColor(0.6, 0.6, 0.7, 0.5)
+        love.graphics.printf(
+            "Select an item to view details",
+            x + leftPanelWidth + padding,
+            y + height/2,
+            rightPanelWidth - padding*2,
+            "center"
+        )
+    end
+    
+    -- Draw controls reminder at the bottom with proper scaling
     love.graphics.setFont(ui.fonts.small)
-    love.graphics.print("[U]se  [D]rop  [I]nventory to close", startX + 10, startY + height - 20)
+    love.graphics.setColor(0.5, 0.5, 0.6, 0.8)
+    love.graphics.printf(
+        "↑/↓: Navigate   ENTER: Use   ESC/I: Close",
+        x + padding,
+        y + height - math.floor(bottomMargin * 0.5),
+        leftPanelWidth - padding*2,
+        "left"
+    )
 end
 
 -- Draw wrapped text

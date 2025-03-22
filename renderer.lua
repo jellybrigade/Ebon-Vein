@@ -388,70 +388,123 @@ function Renderer.drawUI(gameState)
     love.graphics.setColor(1, 1, 1)
 end
 
--- Draw the inventory screen (legacy version)
+-- Draw the inventory screen
 function Renderer.drawInventory(inventory, selectedItem)
-    -- Draw semi-transparent background with a thematic border
-    love.graphics.setColor(0.1, 0.1, 0.15, 0.9)  -- Darker background
-    love.graphics.rectangle("fill", 100, 100, 600, 400)
+    -- Calculate centered position and proper sizing
+    local screenWidth, screenHeight = love.graphics.getDimensions()
+    local inventoryWidth = screenWidth * 0.6
+    local inventoryHeight = screenHeight * 0.7
+    local x = (screenWidth - inventoryWidth) / 2
+    local y = (screenHeight - inventoryHeight) / 2
     
-    -- Add decorative border
+    -- Apply scaling for font size
+    local titleFontSize = math.floor(20 * baseScale)
+    local textFontSize = math.floor(16 * baseScale)
+    local titleFont = love.graphics.newFont(titleFontSize)
+    local textFont = love.graphics.newFont(textFontSize)
+    
+    -- Draw semi-transparent background
+    love.graphics.setColor(0.1, 0.1, 0.15, 0.92)
+    love.graphics.rectangle("fill", x, y, inventoryWidth, inventoryHeight, 10)
+    
+    -- Draw decorative border
     love.graphics.setColor(0.3, 0.3, 0.4)
-    love.graphics.rectangle("line", 100, 100, 600, 400)
-    love.graphics.rectangle("line", 105, 105, 590, 390)
+    love.graphics.rectangle("line", x, y, inventoryWidth, inventoryHeight, 10)
+    love.graphics.rectangle("line", x + 5, y + 5, inventoryWidth - 10, inventoryHeight - 10, 8)
     
     -- Title with thematic styling
-    love.graphics.setColor(0.7, 0.6, 0.2)  -- Gold-ish title
-    love.graphics.print("INVENTORY", 350, 110)
+    love.graphics.setFont(titleFont)
+    love.graphics.setColor(0.7, 0.6, 0.2)
+    local title = "INVENTORY"
+    local titleWidth = titleFont:getWidth(title)
+    love.graphics.print(title, x + (inventoryWidth - titleWidth) / 2, y + 20)
     
-    -- Add some flavor text
+    -- Add flavor text
+    love.graphics.setFont(textFont)
     love.graphics.setColor(0.6, 0.6, 0.7)
-    love.graphics.print("The few possessions you carry in the darkness...", 260, 130)
+    local flavorText = "The few possessions you carry in the darkness..."
+    local flavorWidth = textFont:getWidth(flavorText)
+    love.graphics.print(flavorText, x + (inventoryWidth - flavorWidth) / 2, y + 50)
     
-    -- Controls instructions
+    -- Controls instructions at the bottom
     love.graphics.setColor(0.5, 0.5, 0.6)
-    love.graphics.print("Use: Enter | Navigate: ↑↓ | Close: I or Escape", 270, 470)
+    local controlsText = "Use: Enter | Navigate: ↑↓ | Close: I or Escape"
+    local controlsWidth = textFont:getWidth(controlsText)
+    love.graphics.print(controlsText, 
+                       x + (inventoryWidth - controlsWidth) / 2, 
+                       y + inventoryHeight - 30)
+    
+    -- Draw inventory contents
+    local contentX = x + 30
+    local startY = y + 90
+    local itemHeight = textFontSize * 4.5
+    local nameWidth = inventoryWidth * 0.35
+    local descWidth = inventoryWidth * 0.55
     
     if #inventory == 0 then
         love.graphics.setColor(0.5, 0.5, 0.6)
         love.graphics.printf(
             "Your pack is empty. The Abyss has little to offer.",
-            150, 200, 500, "left"
+            contentX, startY + 20, inventoryWidth - 60, "center"
         )
     else
+        -- Column headers
+        love.graphics.setColor(0.6, 0.5, 0.3)
+        love.graphics.print("ITEM", contentX + 30, startY - 20)
+        love.graphics.print("DESCRIPTION", contentX + nameWidth + 40, startY - 20)
+        
+        -- Separator line
+        love.graphics.setColor(0.3, 0.3, 0.4, 0.6)
+        love.graphics.line(contentX, startY, contentX + inventoryWidth - 60, startY)
+        
+        -- Items
         for i, item in ipairs(inventory) do
-            local y = 160 + (i * 35)  -- Increased spacing from 30 to 35
+            local itemY = startY + (i-1) * itemHeight + 10
             
-            -- Highlight selected item with a subtle glow effect
+            -- Highlight selected item
             if selectedItem == i then
-                -- Darker background for selection
-                love.graphics.setColor(0.2, 0.2, 0.25, 0.8)
-                love.graphics.rectangle("fill", 150, y - 5, 500, 30)
+                -- Selection background
+                love.graphics.setColor(0.2, 0.2, 0.3, 0.8)
+                love.graphics.rectangle("fill", contentX - 10, itemY - 5, 
+                                      inventoryWidth - 40, itemHeight, 5)
                 
-                -- Subtle highlight border
-                love.graphics.setColor(0.5, 0.4, 0.2)
-                love.graphics.rectangle("line", 150, y - 5, 500, 30)
+                -- Selection border
+                love.graphics.setColor(0.6, 0.5, 0.2, 0.8)
+                love.graphics.rectangle("line", contentX - 10, itemY - 5, 
+                                      inventoryWidth - 40, itemHeight, 5)
+                                      
+                -- Selection indicator
+                love.graphics.setColor(0.8, 0.7, 0.3)
+                love.graphics.print("►", contentX - 10, itemY)
             end
             
             -- Draw item symbol with its color
-            love.graphics.setColor(item.color)
-            love.graphics.print(item.symbol, 170, y)
+            love.graphics.setColor(item.color or {0.8, 0.8, 0.8})
+            love.graphics.print(item.symbol, contentX, itemY)
             
             -- Draw item name
             if selectedItem == i then
-                love.graphics.setColor(0.8, 0.7, 0.5)  -- Brighter for selected        
+                love.graphics.setColor(0.9, 0.8, 0.6)
             else
-                love.graphics.setColor(0.7, 0.7, 0.8)
+                love.graphics.setColor(0.8, 0.8, 0.9)
             end
-            love.graphics.print(item.name, 200, y)
+            love.graphics.print(item.name, contentX + 30, itemY)
             
-            -- Draw description with a muted color
-            love.graphics.setColor(0.5, 0.5, 0.6)
-            local descWidth = 300  -- Width for description text wrapping
-            love.graphics.printf(item.description, 380, y, descWidth, "left")
+            -- Draw description with proper wrapping
+            love.graphics.setColor(0.6, 0.6, 0.7)
+            love.graphics.printf(
+                item.description, 
+                contentX + nameWidth + 40, 
+                itemY,
+                descWidth, 
+                "left"
+            )
         end
     end
     
+    -- Reset color and font
     love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(love.graphics.newFont(12))
 end
 
 -- Draw the game over screen with a more thematic design
