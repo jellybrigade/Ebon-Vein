@@ -5,6 +5,7 @@ local UI = {}
 -- Import required modules
 local Visibility = require("visibility")
 local Sanity = require("sanity")  -- Add sanity module
+local Renderer = require("renderer") -- Import renderer for scaling factors
 
 -- Colors for UI elements (dark, muted palette to match the game's tone)
 local COLORS = {
@@ -32,19 +33,31 @@ local COLORS = {
     }
 }
 
--- Panel dimensions
-local PANEL_HEIGHT = 100  -- Reduced height for message-only bottom panel
-local SIDE_PANEL_WIDTH = 280  -- Increased to accommodate all player info
-local TOOLTIP_WIDTH = 250
-local TOOLTIP_PADDING = 10
+-- Panel dimensions (base values)
+local BASE_PANEL_HEIGHT = 100  -- Reduced height for message-only bottom panel
+local BASE_SIDE_PANEL_WIDTH = 280  -- Increased to accommodate all player info
+local BASE_TOOLTIP_WIDTH = 250
+local BASE_TOOLTIP_PADDING = 10
 
 -- Initialize UI elements
 function UI.init(width, height)
+    -- Create fonts that will scale with the window
+    local uiScale = math.min(width / 1024, height / 768)
+    local fonts = {
+        small = love.graphics.newFont(math.max(8, math.floor(10 * uiScale))),
+        regular = love.graphics.newFont(math.max(10, math.floor(12 * uiScale))),
+        medium = love.graphics.newFont(math.max(12, math.floor(14 * uiScale))),
+        large = love.graphics.newFont(math.max(14, math.floor(18 * uiScale)))
+    }
+    
     return {
         width = width,
         height = height,
+        scale = uiScale,
+        fonts = fonts,
         showHelp = false,
         helpDelay = 0,
+        tooltip = nil,
         tooltips = {},
         notifications = {},
         minimapEnabled = true,
@@ -52,8 +65,37 @@ function UI.init(width, height)
     }
 end
 
+-- Update UI when window is resized
+function UI.resize(ui, width, height)
+    ui.width = width
+    ui.height = height
+    
+    -- Recalculate scale
+    ui.scale = math.min(width / 1024, height / 768)
+    
+    -- Update fonts
+    ui.fonts = {
+        small = love.graphics.newFont(math.max(8, math.floor(10 * ui.scale))),
+        regular = love.graphics.newFont(math.max(10, math.floor(12 * ui.scale))),
+        medium = love.graphics.newFont(math.max(12, math.floor(14 * ui.scale))),
+        large = love.graphics.newFont(math.max(14, math.floor(18 * ui.scale)))
+    }
+end
+
+-- Calculate current panel dimensions based on scale
+function UI.getPanelDimensions(ui)
+    local panelHeight = math.floor(BASE_PANEL_HEIGHT * ui.scale)
+    local sidePanelWidth = math.floor(BASE_SIDE_PANEL_WIDTH * ui.scale)
+    local tooltipWidth = math.floor(BASE_TOOLTIP_WIDTH * ui.scale)
+    local tooltipPadding = math.floor(BASE_TOOLTIP_PADDING * ui.scale)
+    
+    return panelHeight, sidePanelWidth, tooltipWidth, tooltipPadding
+end
+
 -- Draw the main UI frame
 function UI.drawFrame(ui, gameState)
+    local PANEL_HEIGHT, SIDE_PANEL_WIDTH, TOOLTIP_WIDTH, TOOLTIP_PADDING = UI.getPanelDimensions(ui)
+    
     -- Bottom panel background (messages only)
     love.graphics.setColor(COLORS.panel)
     love.graphics.rectangle("fill", 0, ui.height - PANEL_HEIGHT, ui.width - SIDE_PANEL_WIDTH, PANEL_HEIGHT)
@@ -66,10 +108,12 @@ function UI.drawFrame(ui, gameState)
     love.graphics.rectangle("line", 0, ui.height - PANEL_HEIGHT, ui.width - SIDE_PANEL_WIDTH, PANEL_HEIGHT)
     love.graphics.rectangle("line", ui.width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH, ui.height)
     
+    -- Set font for UI elements
+    love.graphics.setFont(ui.fonts.regular)
+    
     -- Draw the content within the panels
     UI.drawSidePanel(ui, gameState)  -- Includes player stats now
     UI.drawMessages(ui, gameState)
-    -- UI.drawControls(ui, gameState) -- Function not implemented yet
     
     -- Draw minimap if enabled
     if ui.minimapEnabled then
@@ -121,6 +165,7 @@ end
 
 -- Draw player statistics in the side panel
 function UI.drawPlayerStats(ui, gameState)
+    local PANEL_HEIGHT, SIDE_PANEL_WIDTH = UI.getPanelDimensions(ui)
     local player = gameState.player
     local x = ui.width - SIDE_PANEL_WIDTH + 15
     local y = 50  -- Starting position in side panel
@@ -240,6 +285,7 @@ end
 
 -- Draw the side panel with additional information
 function UI.drawSidePanel(ui, gameState)
+    local PANEL_HEIGHT, SIDE_PANEL_WIDTH = UI.getPanelDimensions(ui)
     local x = ui.width - SIDE_PANEL_WIDTH + 15
     local y = 15  -- Starting position
     
@@ -327,6 +373,7 @@ end
 
 -- Draw the message log with proper text wrapping - now uses full bottom width
 function UI.drawMessages(ui, gameState)
+    local PANEL_HEIGHT, SIDE_PANEL_WIDTH = UI.getPanelDimensions(ui)
     local msgX = 20
     local msgY = ui.height - PANEL_HEIGHT + 15  -- Top of bottom panel
     local msgWidth = ui.width - SIDE_PANEL_WIDTH - 40  -- Full width of bottom panel minus margins

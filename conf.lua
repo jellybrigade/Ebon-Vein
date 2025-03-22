@@ -6,7 +6,7 @@ function love.conf(t)
     
     t.window.width = 1024  
     t.window.height = 768  
-    t.window.resizable = false
+    t.window.resizable = true  -- Enable window resizing
     
     t.console = true  -- Enable console output for debugging
 end

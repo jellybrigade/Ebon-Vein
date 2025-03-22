@@ -3,11 +3,20 @@
 local Renderer = {}
 local Visibility = require("visibility")  -- Import visibility module
 
+-- Base configuration for 1024x768 reference resolution
+local BASE_WIDTH = 1024
+local BASE_HEIGHT = 768
+
 -- Configuration
 local TILE_WIDTH = 16
 local TILE_HEIGHT = 16
 local GRID_OFFSET_X = 50
 local GRID_OFFSET_Y = 50
+
+-- Scaling factors
+local scaleX = 1
+local scaleY = 1
+local baseScale = 1
 
 -- Colors
 local COLORS = {
@@ -38,6 +47,32 @@ local distortionTime = 0
 local sanityDistortion = 0
 local hallucinations = {}
 
+-- Update scaling factors based on window size
+function Renderer.updateScale()
+    local width, height = love.graphics.getDimensions()
+    scaleX = width / BASE_WIDTH
+    scaleY = height / BASE_HEIGHT
+    baseScale = math.min(scaleX, scaleY)
+end
+
+-- Get current scale factors
+function Renderer.getScale()
+    return scaleX, scaleY, baseScale
+end
+
+-- Convert screen coordinates to grid coordinates
+function Renderer.screenToGrid(screenX, screenY)
+    local scaledTileWidth = TILE_WIDTH * baseScale
+    local scaledTileHeight = TILE_HEIGHT * baseScale
+    local scaledOffsetX = GRID_OFFSET_X * scaleX
+    local scaledOffsetY = GRID_OFFSET_Y * scaleY
+    
+    local gridX = math.floor((screenX - scaledOffsetX) / scaledTileWidth) + 1
+    local gridY = math.floor((screenY - scaledOffsetY) / scaledTileHeight) + 1
+    
+    return gridX, gridY
+end
+
 -- Set the pulse effect level for walls
 function Renderer.setPulseEffect(factor)
     pulseEffect = factor
@@ -56,12 +91,23 @@ end
 
 -- Draw the map with visibility
 function Renderer.drawMap(map, visibilityMap, gamePhase)
+    -- Apply scaling
+    local scaledTileWidth = TILE_WIDTH * baseScale
+    local scaledTileHeight = TILE_HEIGHT * baseScale
+    local scaledOffsetX = GRID_OFFSET_X * scaleX
+    local scaledOffsetY = GRID_OFFSET_Y * scaleY
+    
+    -- Scale the font to match the current scale
+    local fontSize = math.max(12, math.floor(16 * baseScale))
+    local font = love.graphics.newFont(fontSize)
+    love.graphics.setFont(font)
+    
     -- Apply sanity distortion to map rendering if active
     local xOffset, yOffset = 0, 0
     if sanityDistortion > 0 then
         -- Random subtle distortion for map tiles
-        xOffset = math.sin(love.timer.getTime() * 2) * sanityDistortion * 3
-        yOffset = math.cos(love.timer.getTime() * 1.5) * sanityDistortion * 3
+        xOffset = math.sin(love.timer.getTime() * 2) * sanityDistortion * 3 * baseScale
+        yOffset = math.cos(love.timer.getTime() * 1.5) * sanityDistortion * 3 * baseScale
     end
     
     for y = 1, map.height do
@@ -74,8 +120,8 @@ function Renderer.drawMap(map, visibilityMap, gamePhase)
                 love.graphics.setColor(COLORS.unseen)
                 love.graphics.print(
                     " ",  -- Empty space for unseen tiles
-                    GRID_OFFSET_X + (x - 1) * TILE_WIDTH,
-                    GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                    scaledOffsetX + (x - 1) * scaledTileWidth,
+                    scaledOffsetY + (y - 1) * scaledTileHeight
                 )
             else
                 -- Choose color based on tile type and visibility state
@@ -124,8 +170,8 @@ function Renderer.drawMap(map, visibilityMap, gamePhase)
                 end
                 
                 -- Apply sanity distortion to visible tiles
-                local drawX = GRID_OFFSET_X + (x - 1) * TILE_WIDTH
-                local drawY = GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                local drawX = scaledOffsetX + (x - 1) * scaledTileWidth
+                local drawY = scaledOffsetY + (y - 1) * scaledTileHeight
                 
                 if visState == Visibility.VISIBLE and sanityDistortion > 0 then
                     -- Apply subtle positional distortion based on sanity
@@ -151,37 +197,43 @@ end
 function Renderer.drawHallucination(hallucination, type)
     if not hallucination.x or not hallucination.y then return end
     
+    -- Apply scaling
+    local scaledTileWidth = TILE_WIDTH * baseScale
+    local scaledTileHeight = TILE_HEIGHT * baseScale
+    local scaledOffsetX = GRID_OFFSET_X * scaleX
+    local scaledOffsetY = GRID_OFFSET_Y * scaleY
+    
     if type == "enemy" then
         -- Draw a hallucinated enemy
         love.graphics.setColor(0.5, 0.2, 0.7, 0.8) -- Purple-ish color for hallucination
         love.graphics.print(
             "?",
-            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
-            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+            scaledOffsetX + (hallucination.x - 1) * scaledTileWidth,
+            scaledOffsetY + (hallucination.y - 1) * scaledTileHeight
         )
     elseif type == "exit" then
         -- Draw a false exit
         love.graphics.setColor(0.9, 0.8, 0.1, 0.7) -- Transparent gold
         love.graphics.print(
             "X",
-            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
-            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+            scaledOffsetX + (hallucination.x - 1) * scaledTileWidth,
+            scaledOffsetY + (hallucination.y - 1) * scaledTileHeight
         )
     elseif type == "doppelganger" then
         -- Draw a copy of the player character
         love.graphics.setColor(0.7, 0.7, 0.9, 0.8)
         love.graphics.print(
             "@",
-            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
-            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+            scaledOffsetX + (hallucination.x - 1) * scaledTileWidth,
+            scaledOffsetY + (hallucination.y - 1) * scaledTileHeight
         )
     elseif type == "shadow" then
         -- Draw a moving shadow
         love.graphics.setColor(0.1, 0.1, 0.2, 0.6)
         love.graphics.print(
             "*",
-            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
-            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+            scaledOffsetX + (hallucination.x - 1) * scaledTileWidth,
+            scaledOffsetY + (hallucination.y - 1) * scaledTileHeight
         )
     end
     
@@ -191,6 +243,12 @@ end
 -- Draw an entity (player, enemy, item, etc.)
 function Renderer.drawEntity(entity)
     if entity.symbol then
+        -- Apply scaling
+        local scaledTileWidth = TILE_WIDTH * baseScale
+        local scaledTileHeight = TILE_HEIGHT * baseScale
+        local scaledOffsetX = GRID_OFFSET_X * scaleX
+        local scaledOffsetY = GRID_OFFSET_Y * scaleY
+        
         -- Use entity's color if available, otherwise use player color
         if entity.color then
             love.graphics.setColor(entity.color)
@@ -200,8 +258,8 @@ function Renderer.drawEntity(entity)
         
         love.graphics.print(
             entity.symbol,
-            GRID_OFFSET_X + (entity.x - 1) * TILE_WIDTH,
-            GRID_OFFSET_Y + (entity.y - 1) * TILE_HEIGHT
+            scaledOffsetX + (entity.x - 1) * scaledTileWidth,
+            scaledOffsetY + (entity.y - 1) * scaledTileHeight
         )
         love.graphics.setColor(1, 1, 1)
     end
@@ -257,12 +315,18 @@ end
 
 -- Draw a ranged attack animation (line from attacker to target)
 function Renderer.drawRangedAttack(from, to)
+    -- Apply scaling
+    local scaledTileWidth = TILE_WIDTH * baseScale
+    local scaledTileHeight = TILE_HEIGHT * baseScale
+    local scaledOffsetX = GRID_OFFSET_X * scaleX
+    local scaledOffsetY = GRID_OFFSET_Y * scaleY
+    
     love.graphics.setColor(COLORS.rangedAttack)
     love.graphics.line(
-        GRID_OFFSET_X + (from.x - 0.5) * TILE_WIDTH,
-        GRID_OFFSET_Y + (from.y - 0.5) * TILE_HEIGHT,
-        GRID_OFFSET_X + (to.x - 0.5) * TILE_WIDTH,
-        GRID_OFFSET_Y + (to.y - 0.5) * TILE_HEIGHT
+        scaledOffsetX + (from.x - 0.5) * scaledTileWidth,
+        scaledOffsetY + (from.y - 0.5) * scaledTileHeight,
+        scaledOffsetX + (to.x - 0.5) * scaledTileWidth,
+        scaledOffsetY + (to.y - 0.5) * scaledTileHeight
     )
     love.graphics.setColor(1, 1, 1)
 end

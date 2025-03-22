@@ -78,6 +78,9 @@ function love.load()
     -- Initialize sanity system
     gameState.player.sanity = Sanity.init(100)
     
+    -- Initialize renderer scaling
+    Renderer.updateScale()
+    
     -- Start with the prologue
     showPrologue()
 end
@@ -1092,4 +1095,25 @@ end
 function love.mousemoved(x, y)
     gameState.mouseX = x
     gameState.mouseY = y
+    
+    -- Convert screen coordinates to grid coordinates for tooltips
+    if gameState.map then
+        gameState.mouseGridX, gameState.mouseGridY = Renderer.screenToGrid(x, y)
+    end
+end
+
+-- Add window resize event handler
+function love.resize(w, h)
+    -- Update renderer scaling
+    Renderer.updateScale()
+    
+    -- Update UI dimensions if it exists
+    if gameState and gameState.ui then
+        UI.resize(gameState.ui, w, h)
+    end
+    
+    -- Recalculate visibility if needed
+    if gameState and gameState.map then
+        updateVisibility()
+    end
 end
