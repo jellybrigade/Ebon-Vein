@@ -16,18 +16,28 @@ Map.EXIT = EXIT  -- Export the EXIT constant
 Map.FLESH = FLESH
 Map.BLOOD = BLOOD
 
+-- Base map parameters
+local BASE_WIDTH = 80
+local BASE_HEIGHT = 50
+local SIZE_MULTIPLIER = 1.3  -- Each level gets this much bigger than the previous
+
 -- Room parameters
 local MIN_ROOM_SIZE = 4
-local MAX_ROOM_SIZE = 8
-local MAX_ROOMS = 15
+local MAX_ROOM_SIZE = 12  -- Increased from 8 for larger rooms
+local BASE_MAX_ROOMS = 20  -- Increased from 15 for more rooms
 
 -- Create a new map grid
 function Map.create(width, height, level)
     level = level or 1
     
+    -- Calculate size based on level
+    local sizeMultiplier = math.pow(SIZE_MULTIPLIER, level - 1)
+    local actualWidth = width or math.floor(BASE_WIDTH * sizeMultiplier)
+    local actualHeight = height or math.floor(BASE_HEIGHT * sizeMultiplier)
+    
     local map = {
-        width = width,
-        height = height,
+        width = actualWidth,
+        height = actualHeight,
         tiles = {},
         rooms = {}, -- Store rooms for later use
         level = level, -- Store the level number
@@ -35,9 +45,9 @@ function Map.create(width, height, level)
     }
     
     -- Initialize with walls
-    for y = 1, height do
+    for y = 1, actualHeight do
         map.tiles[y] = {}
-        for x = 1, width do
+        for x = 1, actualWidth do
             map.tiles[y][x] = WALL
         end
     end
@@ -57,10 +67,11 @@ end
 
 -- Generate a random dungeon with rooms and corridors
 function Map.generateDungeon(map, level)
-    -- Adjust parameters based on level
-    local maxRooms = MAX_ROOMS + (level * 2) -- More rooms in deeper levels
-    local minSize = math.max(3, MIN_ROOM_SIZE - (level - 1)) -- Smaller rooms in deeper levels
-    local maxSize = MAX_ROOM_SIZE - math.floor((level - 1) / 2) -- Smaller max size in deeper levels
+    -- Adjust parameters based on level and map size
+    local mapSizeFactor = (map.width * map.height) / (BASE_WIDTH * BASE_HEIGHT)
+    local maxRooms = math.floor(BASE_MAX_ROOMS * mapSizeFactor) + (level * 3) -- More rooms in deeper levels
+    local minSize = math.max(4, MIN_ROOM_SIZE - (level - 1)) -- Smaller rooms in deeper levels
+    local maxSize = math.min(MAX_ROOM_SIZE, math.floor(MAX_ROOM_SIZE * (0.8 + (level * 0.05)))) -- Larger max size in deeper levels
     
     -- Try to place rooms
     for i = 1, maxRooms do
@@ -127,7 +138,7 @@ function Map.generateFinalLevel(map)
     -- Create a large central chamber
     local centerX = math.floor(map.width / 2)
     local centerY = math.floor(map.height / 2)
-    local chamberRadius = math.min(15, math.floor(map.width / 4))
+    local chamberRadius = math.min(math.floor(map.width / 3), math.floor(map.height / 3))
     
     -- Create circular chamber
     for y = 1, map.height do
@@ -144,89 +155,53 @@ function Map.generateFinalLevel(map)
         end
     end
     
-    -- Create a few entrance corridors
-    local entranceCount = math.random(3, 5)
+    -- Create entrance corridors - more for larger maps
+    local entranceCount = math.random(4, math.min(8, math.floor(map.width / 15)))
     local angleStep = (2 * math.pi) / entranceCount
     
     for i = 1, entranceCount do
         local angle = i * angleStep
-        local corridorLength = math.random(10, 20)
+        local corridorLength = math.random(15, math.min(30, math.floor(map.width / 4)))
         
         local startX = centerX + math.cos(angle) * chamberRadius
         local startY = centerY + math.sin(angle) * chamberRadius
         local endX = centerX + math.cos(angle) * (chamberRadius + corridorLength)
         local endY = centerY + math.sin(angle) * (chamberRadius + corridorLength)
         
-        -- Create corridor
-        Map.createTentacleCorridor(map, 
-                                 math.floor(startX), math.floor(startY), 
-                                 math.floor(endX), math.floor(endY))
+        -- Ensure endpoints are within bounds
+        endX = math.max(2, math.min(map.width - 1, math.floor(endX)))
+        endY = math.max(2, math.min(map.height - 1, math.floor(endY)))
+        startX = math.max(2, math.min(map.width - 1, math.floor(startX)))
+        startY = math.max(2, math.min(map.height - 1, math.floor(startY)))
+        
+        -- Create a winding corridor
+        Map.createWindingCorridor(map, {x = startX, y = startY}, {x = endX, y = endY}, 3)
+        
+        -- Create a room at the end of the corridor
+        local roomSize = math.random(5, 10)
+        local roomX = endX - math.floor(roomSize/2)
+        local roomY = endY - math.floor(roomSize/2)
+        
+        -- Ensure room is within bounds
+        roomX = math.max(2, math.min(map.width - roomSize - 1, roomX))
+        roomY = math.max(2, math.min(map.height - roomSize - 1, roomY))
+        
+        Map.createRoom(map, roomX, roomY, roomSize, roomSize)
+        
+        -- Add the room to the rooms list
+        table.insert(map.rooms, {
+            x = roomX,
+            y = roomY,
+            width = roomSize,
+            height = roomSize,
+            center = {x = endX, y = endY}
+        })
     end
     
-    -- Create a few small flesh chambers along the corridors
-    for i = 1, entranceCount do
-        local angle = (i + 0.5) * angleStep
-        local distance = chamberRadius + math.random(5, 15)
-        
-        local chamberX = centerX + math.cos(angle) * distance
-        local chamberY = centerY + math.sin(angle) * distance
-        
-        Map.createFleshRoom(map, 
-                          math.floor(chamberX), math.floor(chamberY), 
-                          math.random(4, 7), math.random(4, 7))
-    end
-    
-    -- Place entrance at one corridor end
-    local startAngle = math.random() * math.pi * 2
-    local entranceX = centerX + math.cos(startAngle) * (chamberRadius + 15)
-    local entranceY = centerY + math.sin(startAngle) * (chamberRadius + 15)
-    
-    -- Create a small room at the entrance
-    Map.createRoom(map, 
-                 math.floor(entranceX) - 2, math.floor(entranceY) - 2, 
-                 5, 5)
-                 
-    -- Store first room for player placement
-    local firstRoom = {
-        x = math.floor(entranceX) - 2,
-        y = math.floor(entranceY) - 2,
-        width = 5,
-        height = 5,
-        center = {
-            x = math.floor(entranceX),
-            y = math.floor(entranceY)
-        }
-    }
-    table.insert(map.rooms, firstRoom)
-    
-    -- Place exit (Black Heart) in the center
+    -- Place exit in the center of the chamber
     map.exitX = centerX
     map.exitY = centerY
     map.tiles[centerY][centerX] = EXIT
-    
-    -- Store the heart chamber
-    local heartChamber = {
-        x = centerX - chamberRadius,
-        y = centerY - chamberRadius,
-        width = chamberRadius * 2,
-        height = chamberRadius * 2,
-        center = {
-            x = centerX,
-            y = centerY
-        },
-        isHeartChamber = true
-    }
-    table.insert(map.rooms, heartChamber)
-    
-    -- Add tendrils around the heart
-    for i = 1, 8 do
-        local angle = (i / 8) * math.pi * 2
-        local length = math.random(3, 5)
-        local endX = centerX + math.cos(angle) * length
-        local endY = centerY + math.sin(angle) * length
-        
-        Map.createTendril(map, centerX, centerY, math.floor(endX), math.floor(endY))
-    end
 end
 
 -- Create a flesh-based room
@@ -555,6 +530,20 @@ function Map.getTile(map, x, y)
         return nil -- Out of bounds
     end
     return map.tiles[y][x]
+end
+
+-- Get the tile at a position (safely)
+function Map.getTile(map, x, y)
+    if x < 1 or y < 1 or x > map.width or y > map.height then
+        return WALL  -- Out of bounds is treated as wall
+    end
+    return map.tiles[y][x]
+end
+
+-- Check if a position is a valid floor space (including special tiles like blood)
+function Map.isWalkable(map, x, y)
+    local tile = Map.getTile(map, x, y)
+    return tile == FLOOR or tile == BLOOD or tile == FLESH or tile == EXIT
 end
 
 -- Find a random floor tile position

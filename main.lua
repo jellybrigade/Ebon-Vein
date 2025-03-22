@@ -12,6 +12,7 @@ local Visibility = require("visibility")  -- Add visibility module
 local UI = require("ui")  -- Add UI module
 local Story = require("story") -- Add story module
 local Sanity = require("sanity") -- Add sanity module
+local Hazard = require("hazard") -- Add hazard module
 
 -- Game state
 local gameState = {
@@ -53,7 +54,8 @@ local gameState = {
     gamePhase = Story.PHASE.PROLOGUE,  -- Current story phase
     levelEffects = {},     -- Level-specific visual effects
     hallucinations = {}, -- Store visual hallucinations
-    lastTurnCompleted = false -- Track when a turn is completed
+    lastTurnCompleted = false, -- Track when a turn is completed
+    hazards = {},      -- Add hazard tracking
 }
 
 -- Initialize the game
@@ -151,6 +153,9 @@ function initializeGame()
     
     -- Spawn items - different distribution based on level
     gameState.items = Item.spawnItems(gameState.map, 5 + gameState.gamePhase, gameState.gamePhase)
+    
+    -- Generate hazards for the current level
+    gameState.hazards = Hazard.generateHazards(gameState.map, gameState.gamePhase)
     
     -- Reset inventory between games, but not between levels
     if gameState.gamePhase == Story.PHASE.LEVEL_1 then
@@ -431,6 +436,18 @@ function movePlayer(dx, dy)
             pickUpItem(itemIndex)
         end
         
+        -- Check for hazards at the destination
+        local hazardIndex, hazard = Hazard.findAt(gameState.hazards, newX, newY)
+        if hazard then
+            -- Trigger hazard effect
+            Hazard.trigger(hazard, gameState.player, gameState)
+            
+            -- If the hazard is no longer active (like a collapsed floor), don't move there
+            if not hazard.active then
+                return true -- Turn is still used
+            end
+        end
+        
         -- No collision, move the player
         gameState.player.x = newX
         gameState.player.y = newY
@@ -614,6 +631,12 @@ function findEntityAt(x, y)
         end
     end
     
+    -- Check for hazards
+    local _, hazard = Hazard.findAt(gameState.hazards, x, y)
+    if hazard then
+        return hazard
+    end
+    
     -- Check for player
     if gameState.player.x == x and gameState.player.y == y then
         return gameState.player
@@ -654,10 +677,26 @@ function updateEnemies()
             -- Check if player is defeated
             checkDefeat()
         end
+        
+        -- Check for hazards at enemy position
+        local _, hazard = Hazard.findAt(gameState.hazards, enemy.x, enemy.y)
+        if hazard then
+            -- Trigger hazard effect for enemy
+            Hazard.trigger(hazard, enemy, gameState)
+            
+            -- Check if enemy is defeated by hazard
+            if enemy.health <= 0 then
+                addMessage("The " .. enemy.name .. " is killed by " .. hazard.type .. "!")
+                table.remove(gameState.enemies, i)
+            end
+        end
     end
     
     -- Clean up expired ranged attacks
     gameState.rangedAttacks = {}
+    
+    -- Update hazards
+    Hazard.updateHazards(gameState.hazards, gameState)
 end
 
 -- Update game logic (turn-based)
@@ -853,6 +892,13 @@ function love.draw()
     
     -- Render the map and entities with visibility
     Renderer.drawMap(gameState.map, gameState.visibilityMap, gameState.gamePhase)
+    
+    -- Draw hazards (only if visible)
+    for _, hazard in ipairs(gameState.hazards) do
+        if hazard.active and Visibility.isVisible(gameState.visibilityMap, hazard.x, hazard.y) then
+            Renderer.drawEntity(hazard)
+        end
+    end
     
     -- Draw items (only if visible)
     for _, item in ipairs(gameState.items) do

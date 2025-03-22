@@ -3,6 +3,7 @@
 local Enemy = {}
 local Combat = require("combat")  -- Import combat for ranged attacks
 local Visibility = require("visibility")  -- Import visibility module
+local Hazard = require("hazard")  -- Import hazard module
 
 -- Enemy types with their properties
 local ENEMY_TYPES = {
@@ -560,7 +561,9 @@ function Enemy.isValidPosition(x, y, gameState)
     end
     
     -- Check for walls
-    if gameState.map.tiles[y][x] ~= "." then
+    if gameState.map.tiles[y][x] ~= "." and 
+       gameState.map.tiles[y][x] ~= "," and 
+       gameState.map.tiles[y][x] ~= "~" then
         return false
     end
     
@@ -574,6 +577,15 @@ function Enemy.isValidPosition(x, y, gameState)
     -- Check for player
     if gameState.player.x == x and gameState.player.y == y then
         return false
+    end
+    
+    -- Check for inactive hazards (collapsed floors)
+    if gameState.hazards then
+        for _, hazard in ipairs(gameState.hazards) do
+            if hazard.x == x and hazard.y == y and not hazard.active then
+                return false
+            end
+        end
     end
     
     return true
@@ -727,28 +739,30 @@ function Enemy.tryMove(enemy, dx, dy, gameState)
     local newX = enemy.x + dx
     local newY = enemy.y + dy
     
-    -- Don't move into walls
-    local tile = gameState.map.tiles[newY] and gameState.map.tiles[newY][newX]
-    if not tile or tile ~= "." then
-        return false
-    end
-    
-    -- Don't move into player - attack will be handled in main.lua
-    if newX == gameState.player.x and newY == gameState.player.y then
-        return false
-    end
-    
-    -- Don't move into another enemy
-    for _, otherEnemy in ipairs(gameState.enemies) do
-        if otherEnemy ~= enemy and otherEnemy.x == newX and otherEnemy.y == newY then
-            return false
+    if Enemy.isValidPosition(newX, newY, gameState) then
+        enemy.x = newX
+        enemy.y = newY
+        
+        -- Check for hazards at new position
+        if gameState.hazards then
+            local _, hazard = nil, nil
+            for i, h in ipairs(gameState.hazards) do
+                if h.x == newX and h.y == newY and h.active then
+                    _, hazard = i, h
+                    break
+                end
+            end
+            
+            if hazard then
+                -- Trigger hazard for enemy
+                Hazard.trigger(hazard, enemy, gameState)
+            end
         end
+        
+        return true
     end
     
-    -- All checks passed, update position
-    enemy.x = newX
-    enemy.y = newY
-    return true
+    return false
 end
 
 return Enemy

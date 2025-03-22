@@ -379,10 +379,15 @@ end
 
 -- Draw the minimap in the corner
 function UI.drawMinimap(ui, gameState)
-    local mapSize = 100
-    local mapX = ui.width - SIDE_PANEL_WIDTH - mapSize - 25  -- Increased from 20
-    local mapY = 25  -- Increased from 20
-    local cellSize = 2
+    local mapSize = 120  -- Slightly larger minimap
+    local mapX = ui.width - SIDE_PANEL_WIDTH - mapSize - 25
+    local mapY = 25
+    
+    -- Calculate cell size based on map dimensions to ensure it fits
+    local cellSize = math.min(
+        mapSize / gameState.map.width,
+        mapSize / gameState.map.height
+    )
     
     -- Background
     love.graphics.setColor(0, 0, 0, 0.7)
@@ -452,7 +457,7 @@ function UI.drawMinimap(ui, gameState)
     love.graphics.rectangle("fill", 
         mapX + (gameState.player.x - 1) * cellSize - 1, 
         mapY + (gameState.player.y - 1) * cellSize - 1, 
-        cellSize + 2, cellSize + 2)
+        math.max(cellSize + 2, 3), math.max(cellSize + 2, 3))
     
     -- Title
     love.graphics.setColor(COLORS.text)
@@ -733,6 +738,72 @@ function UI.showEntityTooltip(ui, entity, x, y)
     
     -- Add tooltip at cursor position
     UI.addTooltip(ui, tipText, x, y, 0.75)
+end
+
+-- Show tooltip for an entity
+function UI.showEntityTooltip(ui, entity, x, y)
+    if not entity then return end
+    
+    ui.tooltip = {
+        x = x,
+        y = y,
+        text = "",
+        entity = entity
+    }
+    
+    -- Handle hazard tooltips
+    if entity.type and (
+        entity.type == "acid" or 
+        entity.type == "gas" or 
+        entity.type == "spikes" or
+        entity.type == "fire" or
+        entity.type == "crumbling") then
+        
+        local hazardName = ""
+        
+        if entity.type == "acid" then
+            hazardName = "Acid Pool"
+            ui.tooltip.text = "Damages any creature that steps on it."
+        elseif entity.type == "gas" then
+            hazardName = "Gas Vent"
+            ui.tooltip.text = "Periodically releases disorienting gas clouds."
+        elseif entity.type == "spikes" then
+            hazardName = "Spike Trap"
+            ui.tooltip.text = "Damages the first creature to step on it."
+        elseif entity.type == "fire" then
+            hazardName = "Fire"
+            ui.tooltip.text = "Burns creatures and can spread to nearby tiles."
+        elseif entity.type == "crumbling" then
+            hazardName = "Crumbling Floor"
+            ui.tooltip.text = "Unstable ground that will collapse if stepped on again."
+        end
+        
+        ui.tooltip.title = hazardName
+        return
+    end
+    
+    -- ...existing code for other entity tooltips...
+end
+
+-- Draw a tooltip
+function UI.drawTooltip(ui)
+    if not ui.tooltip then return end
+    
+    -- ...existing code...
+    
+    -- Special handling for hazard tooltips
+    if ui.tooltip.entity and ui.tooltip.entity.type and (
+        ui.tooltip.entity.type == "acid" or 
+        ui.tooltip.entity.type == "gas" or 
+        ui.tooltip.entity.type == "spikes" or
+        ui.tooltip.entity.type == "fire" or
+        ui.tooltip.entity.type == "crumbling") then
+        
+        love.graphics.setColor(0.9, 0.2, 0.2)
+        love.graphics.print("! HAZARD !", ui.tooltip.x, ui.tooltip.y - 20)
+    end
+    
+    -- ...existing code...
 end
 
 return UI

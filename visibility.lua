@@ -87,6 +87,39 @@ function Visibility.isSeen(visMap, x, y)
     return visMap[y] and visMap[y][x] >= SEEN
 end
 
+-- Update the visibility map for the current player position
+function Visibility.update(map, visMap, centerX, centerY, radius)
+    -- Adjust radius based on map size
+    local adjustedRadius = radius
+    
+    -- For very large maps, increase the base visibility radius
+    local mapSizeMetric = (map.width + map.height) / 2
+    if mapSizeMetric > 100 then
+        adjustedRadius = radius * (1 + (mapSizeMetric - 100) / 200)
+    end
+    
+    -- First, mark all currently visible tiles as just seen
+    for y = 1, map.height do
+        for x = 1, map.width do
+            if visMap[y][x] == VISIBLE then
+                visMap[y][x] = SEEN
+            end
+        end
+    end
+    
+    -- The center is always visible
+    visMap[centerY][centerX] = VISIBLE
+    
+    -- Cast rays in all directions (full 360 degrees)
+    local rayCount = math.min(360, 120 + math.floor(adjustedRadius))  -- More rays for larger visibility
+    for i = 1, rayCount do
+        local angle = (i / rayCount) * math.pi * 2
+        Visibility.castRay(map, visMap, centerX, centerY, math.cos(angle), math.sin(angle), adjustedRadius)
+    end
+    
+    return visMap
+end
+
 -- Export visibility states for use in other modules
 Visibility.UNSEEN = UNSEEN
 Visibility.SEEN = SEEN

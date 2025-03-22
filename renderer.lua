@@ -207,6 +207,54 @@ function Renderer.drawEntity(entity)
     end
 end
 
+-- Draw entity tooltip (for mouse hover)
+function Renderer.drawEntityTooltip(entity, x, y)
+    if not entity then return end
+    
+    -- Set background color
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.9)
+    
+    -- Set text color
+    love.graphics.setColor(1, 1, 1)
+    
+    -- Add hazard-specific tooltip content
+    if entity.type and (
+        entity.type == "acid" or 
+        entity.type == "gas" or 
+        entity.type == "spikes" or
+        entity.type == "fire" or
+        entity.type == "crumbling") then
+        
+        -- Determine description based on hazard type
+        local description = ""
+        if entity.type == "acid" then
+            description = "Acid Pool: Burns anything that touches it."
+        elseif entity.type == "gas" then
+            description = "Gas Vent: Periodically releases disorienting gas."
+        elseif entity.type == "spikes" then
+            description = "Spike Trap: Damages the first creature to step on it."
+        elseif entity.type == "fire" then
+            description = "Fire: Burns creatures and can spread to nearby tiles."
+        elseif entity.type == "crumbling" then
+            description = "Crumbling Floor: Will collapse if stepped on again."
+        end
+        
+        love.graphics.print(description, x, y)
+        return
+    end
+    
+    -- For non-hazard entities, display basic info
+    local name = entity.name or "Unknown"
+    local description = entity.description or ""
+    
+    love.graphics.print(name, x, y)
+    if description ~= "" then
+        love.graphics.print(description, x, y + 20)
+    end
+    
+    love.graphics.setColor(1, 1, 1)
+end
+
 -- Draw a ranged attack animation (line from attacker to target)
 function Renderer.drawRangedAttack(from, to)
     love.graphics.setColor(COLORS.rangedAttack)

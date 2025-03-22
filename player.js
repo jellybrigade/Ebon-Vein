@@ -1,0 +1,19 @@
+// ...existing code...
+
+class Player {
+    // ...existing code...
+    
+    handleInput() {
+        // ...existing code...
+        
+        // Collision detection with map boundaries
+        this.x = Math.max(0, Math.min(this.x, currentMap.width * tileSize - this.width));
+        this.y = Math.max(0, Math.min(this.y, currentMap.height * tileSize - this.height));
+        
+        // ...existing code...
+    }
+    
+    // ...existing code...
+}
+
+// ...existing code...
