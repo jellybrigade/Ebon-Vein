@@ -325,11 +325,14 @@ function Enemy.initPatrolPoints(enemy, centerX, centerY)
 end
 
 -- Spawn multiple enemies in the dungeon
-function Enemy.spawnEnemies(map, count)
+function Enemy.spawnEnemies(map, count, level)
     local enemies = {}
     
+    -- Limit the number of enemies to between 1 and 4 regardless of level
+    local actualCount = math.min(4, math.max(1, math.random(1, 4)))
+    
     -- Try to place the requested number of enemies
-    for i = 1, count do
+    for i = 1, actualCount do
         local x, y = Enemy.findValidEnemyPosition(map)
         if x and y then
             local enemy = Enemy.create(x, y)

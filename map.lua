@@ -314,10 +314,13 @@ function Map.createWindingCorridor(map, from, to, chaosLevel)
     
     -- Connect the waypoints
     for i = 1, #points - 1 do
-        -- Double-check that points are valid before passing them
-        if points[i] and points[i].x and points[i].y and 
-           points[i+1] and points[i+1].x and points[i+1].y then
-            Map.createCorridor(map, points[i], points[i+1])
+        -- Ensure we have valid points before creating a corridor
+        if points[i] and points[i+1] and 
+           points[i].x and points[i].y and 
+           points[i+1].x and points[i+1].y then
+            Map.createCorridor(map, 
+                {x = points[i].x, y = points[i].y}, 
+                {x = points[i+1].x, y = points[i+1].y})
         end
     end
 end
@@ -461,65 +464,27 @@ function Map.createCorridor(map, from, to, useFleshy)
     
     local tile = useFleshy and FLESH or FLOOR
     
+    -- Ensure all values are integers and within map bounds
+    local fromX = math.floor(math.max(1, math.min(map.width, from.x)))
+    local fromY = math.floor(math.max(1, math.min(map.height, from.y)))
+    local toX = math.floor(math.max(1, math.min(map.width, to.x)))
+    local toY = math.floor(math.max(1, math.min(map.height, to.y)))
+    
     -- Horizontal corridor
-    local x1, x2 = from.x, to.x
+    local x1, x2 = fromX, toX
     if x1 > x2 then x1, x2 = x2, x1 end
     for x = x1, x2 do
-        if x > 0 and x <= map.width and from.y > 0 and from.y <= map.height then
-            map.tiles[from.y][x] = tile
+        if x >= 1 and x <= map.width and fromY >= 1 and fromY <= map.height then
+            map.tiles[fromY][x] = tile
         end
     end
     
     -- Vertical corridor
-    local y1, y2 = from.y, to.y
+    local y1, y2 = fromY, toY
     if y1 > y2 then y1, y2 = y2, y1 end
     for y = y1, y2 do
-        if y > 0 and y <= map.height and to.x > 0 and to.x <= map.width then
-            map.tiles[y][to.x] = tile
-        end
-    end
-end
-
--- Create a winding corridor with more randomness
-function Map.createWindingCorridor(map, from, to, chaosLevel)
-    -- Safety check for from and to parameters
-    if not from or not from.x or not from.y or not to or not to.x or not to.y then
-        print("Warning: createWindingCorridor called with invalid points")
-        return
-    end
-    
-    chaosLevel = chaosLevel or 2
-    local points = {}
-    local segments = 1 + math.floor(chaosLevel * 1.5)
-    
-    -- Generate intermediate points
-    table.insert(points, {x = from.x, y = from.y})
-    
-    for i = 1, segments - 1 do
-        local t = i / segments
-        local midX = from.x + (to.x - from.x) * t
-        local midY = from.y + (to.y - from.y) * t
-        
-        -- Add increasing randomness with level
-        local randomFactor = chaosLevel * 2
-        midX = midX + math.random(-randomFactor, randomFactor)
-        midY = midY + math.random(-randomFactor, randomFactor)
-        
-        -- Ensure midpoints are valid and within map bounds
-        midX = math.max(1, math.min(map.width, midX))
-        midY = math.max(1, math.min(map.height, midY))
-        
-        table.insert(points, {x = midX, y = midY})
-    end
-    
-    table.insert(points, {x = to.x, y = to.y})
-    
-    -- Connect the waypoints
-    for i = 1, #points - 1 do
-        -- Double-check that points are valid before passing them
-        if points[i] and points[i].x and points[i].y and 
-           points[i+1] and points[i+1].x and points[i+1].y then
-            Map.createCorridor(map, points[i], points[i+1])
+        if y >= 1 and y <= map.height and toX >= 1 and toX <= map.width then
+            map.tiles[y][toX] = tile
         end
     end
 end
@@ -533,7 +498,7 @@ function Map.getTile(map, x, y)
 end
 
 -- Get the tile at a position (safely)
-function Map.getTile(map, x, y)
+function Map.getTileSafe(map, x, y)
     if x < 1 or y < 1 or x > map.width or y > map.height then
         return WALL  -- Out of bounds is treated as wall
     end

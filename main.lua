@@ -148,8 +148,8 @@ function initializeGame()
     -- Update initial visibility
     updateVisibility()
     
-    -- Spawn enemies - more and stronger with each level
-    gameState.enemies = Enemy.spawnEnemies(gameState.map, 10 + (gameState.gamePhase * 3), gameState.gamePhase)
+    -- Spawn enemies - limited to 1-4 per level
+    gameState.enemies = Enemy.spawnEnemies(gameState.map, 4, gameState.gamePhase) -- Pass 4 as maximum count
     
     -- Spawn items - different distribution based on level
     gameState.items = Item.spawnItems(gameState.map, 5 + gameState.gamePhase, gameState.gamePhase)
@@ -488,6 +488,12 @@ end
 function useItem(itemIndex)
     local item = gameState.player.inventory[itemIndex]
     if item then
+        -- Check if the item has a use function before attempting to use it
+        if type(item.use) ~= "function" then
+            addMessage("You can't use this item.")
+            return false
+        end
+        
         -- Execute the item's use effect, passing sanity for sanity-affecting items
         local result, sanityEffect, healthEffect = item.use(gameState.player)
         addMessage(result)
@@ -854,9 +860,81 @@ function love.keypressed(key)
         addMessage("A new area of the Abyss forms around you...")
     end
     
+    -- Changed from F key to Ctrl+D for debug mode toggle
+    if key == 'd' and love.keyboard.isDown('lctrl', 'rctrl') then
+        DEBUG_MODE = not DEBUG_MODE
+        print("Debug mode: " .. tostring(DEBUG_MODE))
+    end
+    
     -- If the player moved, update enemies (their turn)
     if moved and not gameState.gameOver then
         updateEnemies()
+    end
+end
+
+-- Process player action
+function processPlayerAction(action)
+    -- Check for special actions first
+    if action == "inventory" then
+        toggleInventory()
+        return
+    elseif action == "help" then
+        gameState.showHelp = not gameState.showHelp
+        return
+    end
+
+    -- If showing inventory, handle inventory actions
+    if gameState.showInventory then
+        if action == "up" and gameState.inventorySelection > 1 then
+            gameState.inventorySelection = gameState.inventorySelection - 1
+        elseif action == "down" and gameState.inventorySelection < #gameState.inventory then
+            gameState.inventorySelection = gameState.inventorySelection + 1
+        elseif action == "use" then
+            useSelectedItem()
+        elseif action == "drop" then
+            dropSelectedItem()
+        end
+        return
+    end
+    
+    -- Regular movement and actions
+    local dx, dy = 0, 0
+    
+    if action == "up" then dy = -1
+    elseif action == "down" then dy = 1
+    elseif action == "left" then dx = -1
+    elseif action == "right" then dx = 1
+    elseif action == "wait" then
+        -- Waiting ends turn
+        gameState.lastTurnCompleted = true
+        addMessage("You wait for a moment...")
+        return
+    elseif action == "interact" then
+        -- Check for interaction with objects at player position
+        local item = findItemAt(gameState.player.x, gameState.player.y)
+        if item then
+            if item.isMeditationAltar then
+                -- Handle meditation altar interaction
+                for i, altarItem in ipairs(gameState.items) do
+                    if altarItem == item then
+                        if meditateAtAltar(i) then
+                            return
+                        end
+                    end
+                end
+            elseif pickupItem(gameState.player.x, gameState.player.y) then
+                return
+            end
+        end
+        return
+    end
+    
+    -- Don't allow movement during gameOver
+    if gameState.gameOver then return end
+    
+    -- Process movement
+    if dx ~= 0 or dy ~= 0 then
+        movePlayer(dx, dy)
     end
 end
 

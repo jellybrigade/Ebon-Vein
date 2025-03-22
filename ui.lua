@@ -806,4 +806,99 @@ function UI.drawTooltip(ui)
     -- ...existing code...
 end
 
+-- Draw inventory panel
+function UI.drawInventory(ui, inventory, selection, x, y, width, height)
+    local startX = x
+    local startY = y
+    
+    love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
+    love.graphics.rectangle("fill", startX, startY, width, height)
+    
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.rectangle("line", startX, startY, width, height)
+    
+    love.graphics.setFont(ui.fonts.medium)
+    love.graphics.print("Inventory", startX + 10, startY + 10)
+    
+    if #inventory == 0 then
+        love.graphics.setFont(ui.fonts.regular)
+        love.graphics.print("Empty", startX + 10, startY + 40)
+    else
+        -- Calculate item positions
+        local itemStartY = startY + 40
+        local itemHeight = 25
+        
+        for i, item in ipairs(inventory) do
+            local itemY = itemStartY + (i - 1) * itemHeight
+            
+            -- Draw selection highlight
+            if i == selection then
+                love.graphics.setColor(0.2, 0.2, 0.3, 0.7)
+                love.graphics.rectangle("fill", startX + 5, itemY, width - 10, itemHeight)
+            end
+            
+            -- Draw item symbol
+            love.graphics.setColor(unpack(item.color))
+            love.graphics.setFont(ui.fonts.regular)
+            love.graphics.print(item.symbol, startX + 10, itemY)
+            
+            -- Draw item name
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            love.graphics.print(item.name, startX + 30, itemY)
+            
+            -- Draw current selection description at the bottom, not overlapping
+            if i == selection then
+                local descY = startY + height - 60
+                local descWidth = width - 20
+                
+                love.graphics.setColor(0.2, 0.2, 0.3, 0.7)
+                love.graphics.rectangle("fill", startX + 10, descY, descWidth, 50)
+                
+                love.graphics.setColor(0.9, 0.9, 0.9)
+                love.graphics.rectangle("line", startX + 10, descY, descWidth, 50)
+                
+                -- Draw description with word wrapping
+                love.graphics.setFont(ui.fonts.small)
+                UI.drawWrappedText(ui, item.description, startX + 15, descY + 5, descWidth - 10)
+            end
+        end
+    end
+    
+    -- Draw controls
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.setFont(ui.fonts.small)
+    love.graphics.print("[U]se  [D]rop  [I]nventory to close", startX + 10, startY + height - 20)
+end
+
+-- Draw wrapped text
+function UI.drawWrappedText(ui, text, x, y, width)
+    local font = love.graphics.getFont()
+    local words = {}
+    
+    -- Split text into words
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    
+    local line = ""
+    local lineY = y
+    
+    for _, word in ipairs(words) do
+        local testLine = line == "" and word or line .. " " .. word
+        local testWidth = font:getWidth(testLine)
+        
+        if testWidth <= width then
+            line = testLine
+        else
+            love.graphics.print(line, x, lineY)
+            lineY = lineY + font:getHeight() + 2
+            line = word
+        end
+    end
+    
+    if line ~= "" then
+        love.graphics.print(line, x, lineY)
+    end
+end
+
 return UI
