@@ -35,6 +35,8 @@ local COLORS = {
 -- Variables for special effects
 local pulseEffect = 0
 local distortionTime = 0
+local sanityDistortion = 0
+local hallucinations = {}
 
 -- Set the pulse effect level for walls
 function Renderer.setPulseEffect(factor)
@@ -46,8 +48,22 @@ function Renderer.setDistortionEffect(time)
     distortionTime = time
 end
 
+-- Set sanity-based visual effects
+function Renderer.setSanityEffect(amount, activeHallucinations)
+    sanityDistortion = amount
+    hallucinations = activeHallucinations or {}
+end
+
 -- Draw the map with visibility
 function Renderer.drawMap(map, visibilityMap, gamePhase)
+    -- Apply sanity distortion to map rendering if active
+    local xOffset, yOffset = 0, 0
+    if sanityDistortion > 0 then
+        -- Random subtle distortion for map tiles
+        xOffset = math.sin(love.timer.getTime() * 2) * sanityDistortion * 3
+        yOffset = math.cos(love.timer.getTime() * 1.5) * sanityDistortion * 3
+    end
+    
     for y = 1, map.height do
         for x = 1, map.width do
             local tile = map.tiles[y][x]
@@ -68,12 +84,33 @@ function Renderer.drawMap(map, visibilityMap, gamePhase)
                     baseColor = COLORS.floor
                 elseif tile == "#" then
                     baseColor = COLORS.wall
+                    
+                    -- Apply wall shifting hallucination if active
+                    for _, hallucination in ipairs(hallucinations) do
+                        if hallucination.type == 3 then -- WALL_SHIFT
+                            -- Make walls "breathe" by adjusting their color
+                            local breatheFactor = math.sin(love.timer.getTime() * 2 + (x+y)/5) * hallucination.intensity
+                            baseColor = {
+                                baseColor[1] * (1 + breatheFactor),
+                                baseColor[2] * (1 + breatheFactor * 0.5),
+                                baseColor[3] * (1 + breatheFactor * 0.5)
+                            }
+                        end
+                    end
                 elseif tile == "X" then
                     baseColor = COLORS.exit
                 elseif tile == "~" then
-                    baseColor = COLORS.flesh -- Use flesh color for ~ tiles
+                    baseColor = COLORS.flesh
+                    
+                    -- Make flesh tiles pulsate
+                    local pulseFactor = 0.1 + math.sin(love.timer.getTime() * 1.5 + (x*y)/10) * 0.1
+                    baseColor = {
+                        baseColor[1] * (1 + pulseFactor),
+                        baseColor[2] * (1 - pulseFactor * 0.5),
+                        baseColor[3] * (1 - pulseFactor * 0.5)
+                    }
                 elseif tile == "," then
-                    baseColor = COLORS.blood -- Use blood color for , tiles
+                    baseColor = COLORS.blood
                 else
                     baseColor = COLORS.floor -- Fallback color for any other tile types
                 end
@@ -86,17 +123,68 @@ function Renderer.drawMap(map, visibilityMap, gamePhase)
                     love.graphics.setColor(baseColor[1] * 0.5, baseColor[2] * 0.5, baseColor[3] * 0.5)
                 end
                 
+                -- Apply sanity distortion to visible tiles
+                local drawX = GRID_OFFSET_X + (x - 1) * TILE_WIDTH
+                local drawY = GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                
+                if visState == Visibility.VISIBLE and sanityDistortion > 0 then
+                    -- Apply subtle positional distortion based on sanity
+                    drawX = drawX + xOffset * math.sin((x+y) * 0.3 + love.timer.getTime())
+                    drawY = drawY + yOffset * math.cos((x-y) * 0.2 + love.timer.getTime())
+                end
+                
                 -- Draw the tile
                 love.graphics.print(
                     tile,                
-                    GRID_OFFSET_X + (x - 1) * TILE_WIDTH,
-                    GRID_OFFSET_Y + (y - 1) * TILE_HEIGHT
+                    drawX,
+                    drawY
                 )
             end
         end
     end
     
     -- Reset color
+    love.graphics.setColor(1, 1, 1)
+end
+
+-- Draw a hallucination
+function Renderer.drawHallucination(hallucination, type)
+    if not hallucination.x or not hallucination.y then return end
+    
+    if type == "enemy" then
+        -- Draw a hallucinated enemy
+        love.graphics.setColor(0.5, 0.2, 0.7, 0.8) -- Purple-ish color for hallucination
+        love.graphics.print(
+            "?",
+            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
+            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+        )
+    elseif type == "exit" then
+        -- Draw a false exit
+        love.graphics.setColor(0.9, 0.8, 0.1, 0.7) -- Transparent gold
+        love.graphics.print(
+            "X",
+            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
+            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+        )
+    elseif type == "doppelganger" then
+        -- Draw a copy of the player character
+        love.graphics.setColor(0.7, 0.7, 0.9, 0.8)
+        love.graphics.print(
+            "@",
+            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
+            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+        )
+    elseif type == "shadow" then
+        -- Draw a moving shadow
+        love.graphics.setColor(0.1, 0.1, 0.2, 0.6)
+        love.graphics.print(
+            "*",
+            GRID_OFFSET_X + (hallucination.x - 1) * TILE_WIDTH,
+            GRID_OFFSET_Y + (hallucination.y - 1) * TILE_HEIGHT
+        )
+    end
+    
     love.graphics.setColor(1, 1, 1)
 end
 
@@ -134,8 +222,17 @@ end
 -- Draw the messages log (legacy method, UI module handles this in new code)
 function Renderer.drawMessages(messages, x, y)
     love.graphics.setColor(COLORS.message)
+    local width = love.graphics.getWidth() - x - 100
+    
     for i, msg in ipairs(messages) do
-        love.graphics.print(msg, x, y - ((#messages - i) * 20))
+        -- Use printf instead of print to make text wrap properly
+        love.graphics.printf(
+            msg, 
+            x, 
+            y - ((#messages - i) * 25), -- Increased spacing from 20 to 25
+            width,
+            "left"
+        )
     end
     love.graphics.setColor(1, 1, 1)
 end
@@ -190,10 +287,13 @@ function Renderer.drawInventory(inventory, selectedItem)
     
     if #inventory == 0 then
         love.graphics.setColor(0.5, 0.5, 0.6)
-        love.graphics.print("Your pack is empty. The Abyss has little to offer.", 270, 200)
+        love.graphics.printf(
+            "Your pack is empty. The Abyss has little to offer.",
+            150, 200, 500, "left"
+        )
     else
         for i, item in ipairs(inventory) do
-            local y = 160 + (i * 30)
+            local y = 160 + (i * 35)  -- Increased spacing from 30 to 35
             
             -- Highlight selected item with a subtle glow effect
             if selectedItem == i then
@@ -220,7 +320,8 @@ function Renderer.drawInventory(inventory, selectedItem)
             
             -- Draw description with a muted color
             love.graphics.setColor(0.5, 0.5, 0.6)
-            love.graphics.print(" - " .. item.description, 380, y)
+            local descWidth = 300  -- Width for description text wrapping
+            love.graphics.printf(item.description, 380, y, descWidth, "left")
         end
     end
     

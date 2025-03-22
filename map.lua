@@ -305,6 +305,12 @@ end
 
 -- Create a winding corridor with more randomness
 function Map.createWindingCorridor(map, from, to, chaosLevel)
+    -- Safety check for from and to parameters
+    if not from or not from.x or not from.y or not to or not to.x or not to.y then
+        print("Warning: createWindingCorridor called with invalid points")
+        return
+    end
+    
     chaosLevel = chaosLevel or 2
     local points = {}
     local segments = 1 + math.floor(chaosLevel * 1.5)
@@ -322,6 +328,10 @@ function Map.createWindingCorridor(map, from, to, chaosLevel)
         midX = midX + math.random(-randomFactor, randomFactor)
         midY = midY + math.random(-randomFactor, randomFactor)
         
+        -- Ensure midpoints are valid and within map bounds
+        midX = math.max(1, math.min(map.width, midX))
+        midY = math.max(1, math.min(map.height, midY))
+        
         table.insert(points, {x = midX, y = midY})
     end
     
@@ -329,7 +339,11 @@ function Map.createWindingCorridor(map, from, to, chaosLevel)
     
     -- Connect the waypoints
     for i = 1, #points - 1 do
-        Map.createCorridor(map, points[i], points[i+1])
+        -- Double-check that points are valid before passing them
+        if points[i] and points[i].x and points[i].y and 
+           points[i+1] and points[i+1].x and points[i+1].y then
+            Map.createCorridor(map, points[i], points[i+1])
+        end
     end
 end
 
@@ -464,6 +478,12 @@ end
 
 -- Create a corridor between two points
 function Map.createCorridor(map, from, to, useFleshy)
+    -- Safety check to prevent nil indexing
+    if not from or not from.x or not from.y or not to or not to.x or not to.y then
+        print("Warning: Attempted to create corridor with invalid points")
+        return
+    end
+    
     local tile = useFleshy and FLESH or FLOOR
     
     -- Horizontal corridor
@@ -481,6 +501,50 @@ function Map.createCorridor(map, from, to, useFleshy)
     for y = y1, y2 do
         if y > 0 and y <= map.height and to.x > 0 and to.x <= map.width then
             map.tiles[y][to.x] = tile
+        end
+    end
+end
+
+-- Create a winding corridor with more randomness
+function Map.createWindingCorridor(map, from, to, chaosLevel)
+    -- Safety check for from and to parameters
+    if not from or not from.x or not from.y or not to or not to.x or not to.y then
+        print("Warning: createWindingCorridor called with invalid points")
+        return
+    end
+    
+    chaosLevel = chaosLevel or 2
+    local points = {}
+    local segments = 1 + math.floor(chaosLevel * 1.5)
+    
+    -- Generate intermediate points
+    table.insert(points, {x = from.x, y = from.y})
+    
+    for i = 1, segments - 1 do
+        local t = i / segments
+        local midX = from.x + (to.x - from.x) * t
+        local midY = from.y + (to.y - from.y) * t
+        
+        -- Add increasing randomness with level
+        local randomFactor = chaosLevel * 2
+        midX = midX + math.random(-randomFactor, randomFactor)
+        midY = midY + math.random(-randomFactor, randomFactor)
+        
+        -- Ensure midpoints are valid and within map bounds
+        midX = math.max(1, math.min(map.width, midX))
+        midY = math.max(1, math.min(map.height, midY))
+        
+        table.insert(points, {x = midX, y = midY})
+    end
+    
+    table.insert(points, {x = to.x, y = to.y})
+    
+    -- Connect the waypoints
+    for i = 1, #points - 1 do
+        -- Double-check that points are valid before passing them
+        if points[i] and points[i].x and points[i].y and 
+           points[i+1] and points[i+1].x and points[i+1].y then
+            Map.createCorridor(map, points[i], points[i+1])
         end
     end
 end

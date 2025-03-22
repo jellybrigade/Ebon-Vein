@@ -65,6 +65,48 @@ local ENEMY_TYPES = {
     }
 }
 
+-- Add humanoid enemy types
+Enemy.TYPES = {}
+Enemy.TYPES.HUMANOID = {
+    SOLDIER = 'soldier',
+    ARCHER = 'archer',
+    KNIGHT = 'knight'
+}
+
+-- Humanoid enemy properties
+local humanoidProperties = {
+    [Enemy.TYPES.HUMANOID.SOLDIER] = {
+        width = 16,
+        height = 32,
+        health = 30,
+        damage = 10,
+        speed = 40,
+        attackRange = 20,
+        attackCooldown = 1,
+        texture = 'humanoid_soldier'
+    },
+    [Enemy.TYPES.HUMANOID.ARCHER] = {
+        width = 16,
+        height = 32,
+        health = 20,
+        damage = 15,
+        speed = 30,
+        attackRange = 100,
+        attackCooldown = 2,
+        texture = 'humanoid_archer'
+    },
+    [Enemy.TYPES.HUMANOID.KNIGHT] = {
+        width = 16,
+        height = 32,
+        health = 50,
+        damage = 20,
+        speed = 25,
+        attackRange = 25,
+        attackCooldown = 1.5,
+        texture = 'humanoid_knight'
+    }
+}
+
 -- Create a new enemy
 function Enemy.create(x, y, type)
     local enemyType = type or math.random(#ENEMY_TYPES)
@@ -99,6 +141,167 @@ function Enemy.create(x, y, type)
     end
     
     return enemy
+end
+
+-- Function to create a humanoid enemy
+function Enemy:createHumanoid(type, x, y)
+    local humanoid = self:create(x, y)
+    
+    -- Set humanoid-specific properties
+    local props = humanoidProperties[type]
+    humanoid.type = type
+    humanoid.width = props.width
+    humanoid.height = props.height
+    humanoid.health = props.health
+    humanoid.damage = props.damage
+    humanoid.speed = props.speed
+    humanoid.attackRange = props.attackRange
+    humanoid.attackCooldown = props.attackCooldown
+    humanoid.attackTimer = 0
+    humanoid.texture = props.texture
+    
+    -- Humanoid-specific behavior and state
+    humanoid.state = 'idle'  -- idle, walking, attacking
+    humanoid.direction = 1   -- 1 for right, -1 for left
+    
+    -- Override update function for humanoid behavior
+    local baseUpdate = humanoid.update
+    humanoid.update = function(self, dt)
+        -- Call base update function
+        baseUpdate(self, dt)
+        
+        -- Update attack timer
+        if self.attackTimer > 0 then
+            self.attackTimer = self.attackTimer - dt
+        end
+        
+        -- Humanoid AI logic
+        local player = self.level.player
+        local distToPlayer = math.sqrt((player.x - self.x)^2 + (player.y - self.y)^2)
+        
+        if distToPlayer <= self.attackRange then
+            -- Attack player if in range and cooldown is ready
+            if self.attackTimer <= 0 then
+                self:attack(player)
+                self.attackTimer = self.attackCooldown
+                self.state = 'attacking'
+            end
+        else
+            -- Move towards player
+            self.state = 'walking'
+            
+            -- Update direction based on player position
+            self.direction = player.x > self.x and 1 or -1
+            
+            -- Move towards player
+            self.x = self.x + self.direction * self.speed * dt
+        end
+    end
+    
+    -- Humanoid attack function
+    humanoid.attack = function(self, target)
+        -- Different attack logic based on humanoid type
+        if self.type == Enemy.TYPES.HUMANOID.ARCHER then
+            -- Archers shoot projectiles
+            self:shootArrow(target)
+        else
+            -- Melee attackers damage directly if close enough
+            target:takeDamage(self.damage)
+        end
+    end
+    
+    -- Archer-specific function to shoot arrows
+    if type == Enemy.TYPES.HUMANOID.ARCHER then
+        humanoid.shootArrow = function(self, target)
+            -- Create an arrow projectile aimed at the target
+            local dx = target.x - self.x
+            local dy = target.y - self.y
+            local dist = math.sqrt(dx * dx + dy * dy)
+            
+            local arrow = {
+                x = self.x,
+                y = self.y + self.height / 2,
+                width = 8,
+                height = 2,
+                damage = self.damage,
+                speed = 200,
+                dx = dx / dist,
+                dy = dy / dist
+            }
+            
+            arrow.update = function(self, dt)
+                self.x = self.x + self.dx * self.speed * dt
+                self.y = self.y + self.dy * self.speed * dt
+                
+                -- Check collision with player
+                if self:checkCollision(self.level.player) then
+                    self.level.player:takeDamage(self.damage)
+                    -- Remove arrow
+                    for i, proj in ipairs(self.level.projectiles) do
+                        if proj == self then
+                            table.remove(self.level.projectiles, i)
+                            break
+                        end
+                    end
+                end
+            end
+            
+            arrow.render = function(self)
+                love.graphics.rectangle('fill', self.x, self.y, self.width, self.height)
+            end
+            
+            arrow.checkCollision = function(self, entity)
+                return not (self.x > entity.x + entity.width or
+                           entity.x > self.x + self.width or
+                           self.y > entity.y + entity.height or
+                           entity.y > self.y + self.height)
+            end
+            
+            -- Add to projectiles list
+            table.insert(self.level.projectiles, arrow)
+        end
+    end
+    
+    -- Override render function for humanoids
+    humanoid.render = function(self)
+        -- Set color based on type
+        if self.type == Enemy.TYPES.HUMANOID.SOLDIER then
+            love.graphics.setColor(0.8, 0.2, 0.2)
+        elseif self.type == Enemy.TYPES.HUMANOID.ARCHER then
+            love.graphics.setColor(0.2, 0.8, 0.2)
+        elseif self.type == Enemy.TYPES.HUMANOID.KNIGHT then
+            love.graphics.setColor(0.2, 0.2, 0.8)
+        end
+        
+        -- Draw humanoid body
+        love.graphics.rectangle('fill', self.x, self.y, self.width, self.height)
+        
+        -- Reset color
+        love.graphics.setColor(1, 1, 1)
+        
+        -- Draw health bar
+        local healthBarWidth = self.width
+        local healthBarHeight = 4
+        local healthPercentage = self.health / humanoidProperties[self.type].health
+        
+        love.graphics.setColor(1, 0, 0)
+        love.graphics.rectangle('fill', self.x, self.y - healthBarHeight - 2, 
+                                healthBarWidth * healthPercentage, healthBarHeight)
+        love.graphics.setColor(1, 1, 1)
+    end
+    
+    return humanoid
+end
+
+-- Function to spawn a random humanoid enemy
+function Enemy:spawnRandomHumanoid(x, y)
+    local types = {
+        Enemy.TYPES.HUMANOID.SOLDIER,
+        Enemy.TYPES.HUMANOID.ARCHER,
+        Enemy.TYPES.HUMANOID.KNIGHT
+    }
+    local randomType = types[math.random(#types)]
+    return self:createHumanoid(randomType, x, y)
 end
 
 -- Initialize patrol points in a circular pattern around spawn point

@@ -277,7 +277,7 @@ function Story.showNarrativeScreen(phase, callback)
                          (love.graphics.getWidth() - subtitleWidth) / 2,
                          love.graphics.getHeight() * 0.15 + fontSize * 1.5)
         
-        -- Draw narrative text safely
+        -- Draw narrative text safely with proper wrapping
         love.graphics.setColor(0.8, 0.8, 0.9)
         local status, err = pcall(function()
             love.graphics.printf(
